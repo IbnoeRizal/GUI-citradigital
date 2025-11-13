@@ -11,7 +11,7 @@ if(-not(Test-Path ".\.venv")){
 if(-not $env:VIRTUAL_ENV){
     & .\.venv/Scripts/Activate;
 }
-if(-not $isready || -not(Test-Path ".venv/Lib/site-packages/cv2")){
+if(-not $isready -or -not(Test-Path ".venv/Lib/site-packages/cv2")){
     python -m pip install --upgrade pip;
     python -m pip install -r requirements.txt;
 }
