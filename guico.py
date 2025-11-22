@@ -14,9 +14,9 @@ class Img:
         if isinstance(p, np.ndarray):
             if p.ndim not in (2, 3):
                 raise ValueError("invalid image array shape")
-            self.img = p.copy()
-            return
-
+            self.img = p
+        if not isinstance(p,str):
+            raise ValueError("invalid, p(parameter) has to be either string path or img")
         p = p.strip()
         n = len(p)
 
@@ -36,12 +36,13 @@ class Img:
         if self.img is None:
             return None
         elif len(self.img.shape) == 2:
-            return self.img
+            return self.img.copy()
         ## Weighted formula: Gray = 0.2989*R + 0.5870*G + 0.1140*B -- important !! cv2 using BGR format
+        cp = self.img      
         gray = (
-            0.1140 * self.img[:, :, 0]
-            + 0.5870 * self.img[:, :, 1]
-            + 0.2989 * self.img[:, :, 2]
+            0.1140 * cp[:, :, 0]
+            + 0.5870 * cp[:, :, 1]
+            + 0.2989 * cp[:, :, 2]
         )
         return np.clip(gray, 0, 255).astype(np.uint8)
 
@@ -76,11 +77,11 @@ class Img:
         filler = np.zeros((self.img.shape[:2]),dtype=np.uint8)
         match select:
             case 'r':
-                return np.dstack([filler, filler, self.img[:, :, 2]])
+                return np.dstack([filler, filler, self.img[:, :, 2].copy()])
             case 'g':
-                return np.dstack([filler, self.img[:, :, 1], filler])
+                return np.dstack([filler, self.img[:, :, 1].copy(), filler])
             case 'b':
-                return np.dstack([self.img[:, :, 0], filler, filler])
+                return np.dstack([self.img[:, :, 0].copy(), filler, filler])
             case _:
                 return None
 
@@ -92,15 +93,66 @@ class Img:
 
         return obj.img is not None
 
+    def stretchPixelDist(self, low = 0, high = 255) -> None|np.ndarray:
+
+        low = min(255, max(0,low))
+        high = min(255, max(0, high))
+
+        if self.img is None or self.img.ndim not in (2,3):
+            return None
+
+        def helper(ch:np.ndarray):
+            v_max, v_min = np.amax(ch) , np.amin(ch)
+
+            if v_min == v_max:
+                ch = np.full_like(ch,low,dtype=np.uint8)
+                return
+        
+            perbandingan = (high - low) / (v_max - v_min)
+
+            result:np.ndarray = low + (ch - v_min) * perbandingan
+            ch = result.clip(min=0, max=255).astype(np.uint8)
+  
+        temp = np.empty(self.img.shape,dtype=np.uint8)
+        
+        if temp.ndim == 2:
+            helper(self.img)
+        else:
+            for ch in self.img[:,:]:
+                helper(ch)
+        return temp
+
+    def contrastAdjust(self, alpha=1.2) -> None  | np.ndarray:
+        if self.img is None:
+            return None
+        channel:int = self.img.ndim or 0
+        match channel:
+            case 2:
+                avg = np.mean(self.img)
+                result = alpha * (self.img - avg) + avg
+                return result.clip(0,255).astype(np.uint8)
+            case 3:
+                h, w, _ = self.img.shape
+                result = np.empty((h, w, 3), dtype=np.uint8)
+
+                for i in range(3):
+                    ch = self.img[:,:,i]
+                    avg = np.mean(ch)
+                    result[:,:,i] = (alpha * (ch - avg) + avg).clip(0,255)
+                return result
+
+        return None
+
+
 
 if __name__ == "__main__":
     print('this code section is for testing only')
     inp = input("masukkan path").strip()
     mg = Img(inp)
 
-    w = mg.dissableexcept('g')
+    w = mg.contrastAdjust()
 
-    cv.namedWindow("bgr", cv.WINDOW_NORMAL)
-    cv.imshow("bgr", w)
+    cv.namedWindow("stretchPixelDist", cv.WINDOW_NORMAL)
+    cv.imshow("stretchPixelDist", w)
     cv.waitKey(0)
     cv.destroyAllWindows()
