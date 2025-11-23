@@ -4,8 +4,7 @@ from PyQt6.QtWidgets import (QApplication, QWidget, QPushButton, QFileDialog, QS
 from PyQt6.QtGui import (QImage, QPixmap)
 from typing import cast
 
-from numpy import load
-
+import numpy as np
 from plotter import Plot
 from guico import Img
 
@@ -243,7 +242,7 @@ class Mainwindow(QMainWindow):
         vlayout.addWidget(container, stretch=2, alignment=Qt.AlignmentFlag.AlignCenter)
         vlayout.addWidget(container2,stretch=1, alignment=Qt.AlignmentFlag.AlignTop)
 
-        def loadonclick(arg):
+        def loadonclick(arg:Img | None):
             if not self.widgetdata[widget]['path']:
                 label_img.setText('Load file terlebih dahulu')
                 label_img.setStyleSheet('background-color: red')
@@ -252,10 +251,11 @@ class Mainwindow(QMainWindow):
             datadict = self.widgetdata[widget]
             #try to load file
             try:
-                orig = arg if isinstance(arg,Img) else Img(datadict['path'])
-                orig.img = orig.toGrayscale()
+                if isinstance(arg, Img):
+                    datadict['img'] = Img(arg.toGrayscale())
+                else:
+                    datadict['img'] = Img(Img.makeTemp(datadict['path']).toGrayscale())
 
-                datadict['img'] = orig
                 self._display_to_label(label_img,self._cv2_to_pixmap(datadict['img'].img))
                 buf = Plot.makePlot(datadict['img'].img).getBuf()
 
@@ -340,10 +340,11 @@ class Mainwindow(QMainWindow):
             datadict = self.widgetdata[widget]
             #try to load file
             try:
-                orig = arg if isinstance(arg,Img) else Img(datadict['path'])
-                orig.img = orig.toBW()
+                if isinstance(arg, Img):
+                    datadict['img'] = Img(arg.toBW())
+                else:
+                    datadict['img'] = Img(Img.makeTemp(datadict['path']).toBW())
 
-                datadict['img'] = orig
                 self._display_to_label(label_img,self._cv2_to_pixmap(datadict['img'].img))
                 buf = Plot.makePlot(datadict['img'].img).getBuf()
 
@@ -428,10 +429,11 @@ class Mainwindow(QMainWindow):
             datadict = self.widgetdata[widget]
             #try to load file
             try:
-                orig = arg if isinstance(arg,Img) else Img(datadict['path'])
-                orig.img = orig.toNeg()
+                if isinstance(arg, Img):
+                    datadict['img'] = Img(arg.toNeg())
+                else:
+                    datadict['img'] = Img(Img.makeTemp(datadict['path']).toNeg())
 
-                datadict['img'] = orig
                 self._display_to_label(label_img,self._cv2_to_pixmap(datadict['img'].img))
                 buf = Plot.makePlot(datadict['img'].img).getBuf()
 
@@ -519,9 +521,11 @@ class Mainwindow(QMainWindow):
             datadict = self.widgetdata[widget]
             #try to load file
             try:
-                orig = arg if isinstance(arg,Img) else Img(datadict['path'])
-                orig.img = orig.dissableexcept(arg2)
-                datadict['img'] = orig
+                if isinstance(arg, Img):
+                    datadict['img'] = Img(arg.dissableexcept(arg2))
+                else:
+                    datadict['img'] = Img(Img.makeTemp(datadict['path']).dissableexcept(arg2))
+
                 self._display_to_label(label_img,self._cv2_to_pixmap(datadict['img'].img))
                 buf = Plot.makePlot(datadict['img'].img).getBuf()
 
