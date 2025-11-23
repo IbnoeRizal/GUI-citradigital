@@ -94,6 +94,10 @@ class Img:
 
         return obj.img is not None
 
+    @staticmethod
+    def makeTemp(path:str):
+        return Img(path)
+
     def stretchPixelDist(self, low = 0, high = 255) -> np.ndarray | None:
 
         low = min(255, max(0,low))
@@ -106,8 +110,7 @@ class Img:
             v_max, v_min = np.amax(ch) , np.amin(ch)
 
             if v_min == v_max:
-                ch = np.full_like(ch,low,dtype=np.uint8)
-                return
+                return np.full_like(ch,low,dtype=np.uint8)
         
             perbandingan = (high - low) / (v_max - v_min)
 
