@@ -15,6 +15,7 @@ class Img:
             if p.ndim not in (2, 3):
                 raise ValueError("invalid image array shape")
             self.img = p
+            return
         if not isinstance(p,str):
             raise ValueError("invalid, p(parameter) has to be either string path or img")
         p = p.strip()
@@ -93,7 +94,7 @@ class Img:
 
         return obj.img is not None
 
-    def stretchPixelDist(self, low = 0, high = 255) -> None|np.ndarray:
+    def stretchPixelDist(self, low = 0, high = 255) -> np.ndarray | None:
 
         low = min(255, max(0,low))
         high = min(255, max(0, high))
@@ -111,18 +112,18 @@ class Img:
             perbandingan = (high - low) / (v_max - v_min)
 
             result:np.ndarray = low + (ch - v_min) * perbandingan
-            ch = result.clip(min=0, max=255).astype(np.uint8)
+            return result.clip(min=0, max=255).astype(np.uint8)
   
         temp = np.empty(self.img.shape,dtype=np.uint8)
         
         if temp.ndim == 2:
-            helper(self.img)
+            temp = helper(self.img)
         else:
-            for ch in self.img[:,:]:
-                helper(ch)
+            for i in range(3):
+                temp[:,:,i] = helper(self.img[:,:,i])
         return temp
 
-    def contrastAdjust(self, alpha=1.2) -> None  | np.ndarray:
+    def contrastAdjust(self, alpha=1.2) -> np.ndarray | None:
         if self.img is None:
             return None
         channel:int = self.img.ndim or 0
@@ -150,7 +151,7 @@ if __name__ == "__main__":
     inp = input("masukkan path").strip()
     mg = Img(inp)
 
-    w = mg.contrastAdjust()
+    w = mg.contrastAdjust(alpha=1.5)
 
     cv.namedWindow("stretchPixelDist", cv.WINDOW_NORMAL)
     cv.imshow("stretchPixelDist", w)

@@ -4,6 +4,8 @@ from PyQt6.QtWidgets import (QApplication, QWidget, QPushButton, QFileDialog, QS
 from PyQt6.QtGui import (QImage, QPixmap)
 from typing import cast
 
+from numpy import load
+
 from plotter import Plot
 from guico import Img
 
@@ -13,7 +15,7 @@ import cv2 as cv
 class Mainwindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.options = ('original','grayscale', 'BW', 'neg', 'RGB')
+        self.options = ('original','grayscale', 'BW', 'neg', 'RGB','contrast')
         self.menu = ('file',)
         self.widgetdata ={}    
         
@@ -105,6 +107,91 @@ class Mainwindow(QMainWindow):
         button_proses.clicked.connect(loadonclick)
 
 
+    def _handlecontrast(self, widget:QWidget):
+        self.widgetdata[widget] = {'img': None, 'path':'', 'reference': None}
+        widget.setStyleSheet('background-color: black')
+
+        #set layout
+        baseLayout = QVBoxLayout()
+        widget.setLayout(baseLayout)
+        
+        #set picture and chart layout
+        pclayout = QHBoxLayout()
+        baseLayout.addLayout(pclayout, stretch=2)
+
+        #set buttons layout
+        btlayout = QGridLayout()
+        baseLayout.addLayout(btlayout, stretch=1)
+
+        #set layout for radiobtns
+        rdbuttonVlayout = QVBoxLayout()
+        btlayout.addLayout(rdbuttonVlayout,0,0)
+
+        #label declaration
+        label_img = QLabel()
+        label_img.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Expanding)
+
+        label_chart = QLabel()
+        label_chart.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Expanding)
+
+        #button declaration
+        button_load = QComboBox()
+        button_load.setPlaceholderText('load dari proses lain')
+        button_load.setStyleSheet('color: white')
+
+        button_refresh = QPushButton('refresh')
+        button_refresh.setStyleSheet('background-color: dark gray')
+        button_refresh.setMaximumWidth(50)
+
+        radioBtnsGroup = QButtonGroup(widget)
+        radiobtns = self._radiobtngenerator(radioBtnsGroup,['stretch pixel', 'Adjust contrast'],rdbuttonVlayout)
+        radioBtnsGroup.setExclusive(True)
+
+        #set label to it's layout
+        pclayout.addWidget(label_img)
+        pclayout.addWidget(label_chart)
+
+        #set button to it's layout
+        btlayout.addWidget(button_load,0,1,alignment=Qt.AlignmentFlag.AlignTop)
+        btlayout.addWidget(button_refresh,0,2,alignment=Qt.AlignmentFlag.AlignTop)
+
+        #define function onclick refresh
+        button_refresh.clicked.connect(lambda: self._comboadder(widget,button_load,[2,3]))
+
+        #define function onclick load button
+        def loadFromAnotherProcess(process:str):
+            if process == '':
+                return
+            data = getattr(self,process)
+            if not data: 
+                return
+            self.widgetdata[widget]['reference'] = self.widgetdata[data]['img']
+            self.widgetdata[widget]['path'] = self.widgetdata[data]['path']
+        button_load.currentTextChanged.connect(loadFromAnotherProcess)
+
+        #define function onclick radiobtn
+        def showonclick(ind:str, contrastval:float):
+            ref:Img = self.widgetdata[widget]['reference']
+            if ref is None or ind == '':
+                label_img.setText('ambil gambar dari proses lain terlebih dahulu')       
+                return
+
+            match ind:
+                case 'stretch pixel': self.widgetdata[widget]['img'] = Img(ref.stretchPixelDist())
+                case 'Adjust contrast': self.widgetdata[widget]['img'] = Img(ref.contrastAdjust(alpha=contrastval))
+
+            pixmap1 = self._cv2_to_pixmap(self.widgetdata[widget]['img'].img)
+            buff = Plot.makePlot(self.widgetdata[widget]['img'].img).getBuf()
+
+            qimg = QImage.fromData(buff.read())
+            pixmap2 = QPixmap.fromImage(qimg)
+
+            self._display_to_label(label=label_img,pic=pixmap1)
+            self._display_to_label(label_chart, pixmap2)
+
+        radioBtnsGroup.buttonClicked.connect(lambda btn: showonclick(btn.text(),1.5))
+
+
     def _handlegrayscale(self, widget:QWidget):
         self.widgetdata[widget] = {'img': None, 'path': ''}
 
@@ -141,6 +228,7 @@ class Mainwindow(QMainWindow):
 
         button_load = QComboBox()
         button_load.setPlaceholderText('load dari proses lain')
+        button_load.setStyleSheet('color: white')
 
         button_refresh = QPushButton('refresh')
         button_refresh.setStyleSheet('background-color: dark gray')
@@ -189,7 +277,7 @@ class Mainwindow(QMainWindow):
 
 
         button_proses.clicked.connect(loadonclick)
-        button_refresh.clicked.connect(lambda: self._combobadder(widget,button_load,[2,3]))
+        button_refresh.clicked.connect(lambda: self._comboadder(widget,button_load,[2,3]))
         button_load.currentTextChanged.connect(helper)
 
     def _handleBW (self, widget:QWidget):
@@ -228,6 +316,7 @@ class Mainwindow(QMainWindow):
 
         button_load = QComboBox()
         button_load.setPlaceholderText('load dari proses lain')
+        button_load.setStyleSheet('color: white')
 
         button_refresh = QPushButton('refresh')
         button_refresh.setStyleSheet('background-color: dark gray')
@@ -276,7 +365,7 @@ class Mainwindow(QMainWindow):
 
 
         button_proses.clicked.connect(loadonclick)
-        button_refresh.clicked.connect(lambda: self._combobadder(widget,button_load,[2,3]))
+        button_refresh.clicked.connect(lambda: self._comboadder(widget,button_load,[2,3]))
         button_load.currentTextChanged.connect(helper)
 
     def _handleneg(self, widget:QWidget):
@@ -315,6 +404,7 @@ class Mainwindow(QMainWindow):
 
         button_load = QComboBox()
         button_load.setPlaceholderText('load dari proses lain')
+        button_load.setStyleSheet('color: white')
 
         button_refresh = QPushButton('refresh')
         button_refresh.setStyleSheet('background-color: dark gray')
@@ -363,7 +453,7 @@ class Mainwindow(QMainWindow):
 
 
         button_proses.clicked.connect(loadonclick)
-        button_refresh.clicked.connect(lambda: self._combobadder(widget,button_load,[2,3]))
+        button_refresh.clicked.connect(lambda: self._comboadder(widget,button_load,[2,3]))
         button_load.currentTextChanged.connect(helper)
 
     def _handleRGB(self, widget:QWidget):
@@ -404,6 +494,7 @@ class Mainwindow(QMainWindow):
 
         button_load = QComboBox()
         button_load.setPlaceholderText('load dari proses lain')
+        button_load.setStyleSheet('color: white')
 
         button_refresh = QPushButton('refresh')
         button_refresh.setStyleSheet('background-color: dark gray')
@@ -451,7 +542,7 @@ class Mainwindow(QMainWindow):
             loadonclick(im)
 
         rgbOptionGroup.buttonClicked.connect(lambda btn: loadonclick(None,btn.text()))
-        button_refresh.clicked.connect(lambda: self._combobadder(widget,button_load,[3]))
+        button_refresh.clicked.connect(lambda: self._comboadder(widget,button_load,[3]))
         button_load.currentTextChanged.connect(helper)
         
     #menu bar handler
@@ -499,18 +590,20 @@ class Mainwindow(QMainWindow):
 
         label.setPixmap(scaled_pixmap)
 
-    def _combobadder(self,widget:QWidget, Combbutton: QComboBox, shapes: list[int]):
+    def _comboadder(self,widget:QWidget, Combbutton: QComboBox, shapes: list[int]):
         Combbutton.clear()
         for name in self.options:
             widg = getattr(self,name)
             image = self.widgetdata[widg]['img']
             if image and (len(image.img.shape) in shapes) and widg != widget:
                 Combbutton.addItem(name) 
+                Combbutton.setStyleSheet('color: white')
 
     def _radiobtngenerator(self, groupbtn: QButtonGroup, btns: list[str], layout: QVBoxLayout) -> list[QRadioButton]:
         radios = []
         for text in btns:
             rb = QRadioButton(text)
+            rb.setStyleSheet('color: white')
             groupbtn.addButton(rb)
             layout.addWidget(rb)
             radios.append(rb)
