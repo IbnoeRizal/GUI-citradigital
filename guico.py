@@ -147,6 +147,16 @@ class Img:
 
         return None
 
+    def blur(self,kernelOpt:int = 1) -> np.ndarray | None:
+        if self.img is None:
+            return None
+        kernelOpt = min(3, max(0, kernelOpt))
+        match kernelOpt:
+            case 1: return cv.filter2D(self.img,-1,cv.getGaussianKernel(15,1.0))
+            #case 2: return cv.filter2D(self.img,-1,cv.getGaborKernel(3,1.0))
+            #case 2: return cv.filter2D(self.img,-1,cv.getDerivKernels(ksize=3))           
+        return None
+
 
 
 if __name__ == "__main__":
@@ -154,7 +164,7 @@ if __name__ == "__main__":
     inp = input("masukkan path").strip()
     mg = Img(inp)
 
-    w = mg.contrastAdjust(alpha=1.5)
+    w = mg.blur()
 
     cv.namedWindow("stretchPixelDist", cv.WINDOW_NORMAL)
     cv.imshow("stretchPixelDist", w)
