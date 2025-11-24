@@ -1,9 +1,11 @@
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import (QApplication, QWidget, QPushButton, QFileDialog, QSizePolicy, QGridLayout,
-                              QMainWindow, QHBoxLayout, QVBoxLayout, QTabWidget, QLabel, QComboBox, QRadioButton, QButtonGroup)
-from PyQt6.QtGui import (QImage, QPixmap)
+from PyQt6.QtWidgets import (QApplication, QSlider, QWidget, QPushButton, QFileDialog, QSizePolicy, QGridLayout,
+                             QMainWindow, QHBoxLayout, QVBoxLayout, QTabWidget, QLabel, QComboBox, QRadioButton, 
+                             QButtonGroup, QToolTip)
+from PyQt6.QtGui import (QCursor, QImage, QPixmap)
 from typing import cast
 
+from matplotlib.pyplot import winter
 import numpy as np
 from plotter import Plot
 from guico import Img
@@ -14,7 +16,7 @@ import cv2 as cv
 class Mainwindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.options = ('original','grayscale', 'BW', 'neg', 'RGB','contrast')
+        self.options = ('original','grayscale', 'BW', 'neg', 'RGB','contrast','convolv')
         self.menu = ('file',)
         self.widgetdata ={}    
         
@@ -105,6 +107,95 @@ class Mainwindow(QMainWindow):
         
         button_proses.clicked.connect(loadonclick)
 
+    def _handleconvolv(self, widget:QWidget):
+            self.widgetdata[widget] = {'img': None, 'path':'', 'reference': None}
+            widget.setStyleSheet('background-color: black')
+
+            #set layout
+            baseLayout = QVBoxLayout()
+            widget.setLayout(baseLayout)
+            
+            #set picture and chart layout
+            pclayout = QHBoxLayout()
+            baseLayout.addLayout(pclayout, stretch=2)
+
+            #set buttons layout
+            btlayout = QGridLayout()
+            baseLayout.addLayout(btlayout, stretch=1)
+
+            #set layout for radiobtns
+            rdbuttonVlayout = QVBoxLayout()
+            btlayout.addLayout(rdbuttonVlayout,1,0)
+
+            #label declaration
+            label_img = QLabel()
+            label_img.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Expanding)
+
+            label_chart = QLabel()
+            label_chart.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Expanding)
+
+            #button declaration
+            button_load = QComboBox()
+            button_load.setPlaceholderText('load dari proses lain')
+            button_load.setStyleSheet('color: white')
+
+            button_refresh = QPushButton('refresh')
+            button_refresh.setStyleSheet('background-color: dark gray')
+            button_refresh.setMaximumWidth(50)
+
+            radioBtnsGroup = QButtonGroup(widget)
+            radiobtns = self._radiobtngenerator(radioBtnsGroup,['lp1', 'lp2', 'lp3', 'hp1','hp2','hp3'],rdbuttonVlayout)
+            radioBtnsGroup.setExclusive(True)
+
+            #set label to it's layout
+            pclayout.addWidget(label_img)
+            pclayout.addWidget(label_chart)
+
+            #set button to it's layout
+            btlayout.addWidget(button_load,1,1,alignment=Qt.AlignmentFlag.AlignTop)
+            btlayout.addWidget(button_refresh,1,2,alignment=Qt.AlignmentFlag.AlignTop)
+
+            #define function onclick refresh
+            button_refresh.clicked.connect(lambda: self._comboadder(widget,button_load,[2,3]))
+
+            #define function onclick load button
+            def loadFromAnotherProcess(process:str):
+                if process == '':
+                    return
+                data = getattr(self,process)
+                if not data: 
+                    return
+                self.widgetdata[widget]['reference'] = self.widgetdata[data]['img']
+                self.widgetdata[widget]['path'] = self.widgetdata[data]['path']
+            button_load.currentTextChanged.connect(loadFromAnotherProcess)
+
+            #define function onclick radiobtn
+            def showonclick(ind:str):
+                ref:Img = self.widgetdata[widget]['reference']
+                if ref is None or ind == '':
+                    label_img.setText('ambil gambar dari proses lain terlebih dahulu')       
+                    return
+
+                match ind:
+                    case 'lp1': self.widgetdata[widget]['img'] = Img(ref.convolv(Img.kernelLowpass1))
+                    case 'lp2': self.widgetdata[widget]['img'] = Img(ref.convolv(Img.kernelLowpass2))
+                    case 'lp3': self.widgetdata[widget]['img'] = Img(ref.convolv(Img.kernelLowpass3))
+                    case 'hp1': self.widgetdata[widget]['img'] = Img(ref.convolv(Img.kernelHighpass1))
+                    case 'hp2': self.widgetdata[widget]['img'] = Img(ref.convolv(Img.kernelHighpass2))
+                    case 'hp3': self.widgetdata[widget]['img'] = Img(ref.convolv(Img.kernelHighpass3))
+                    case _:return
+
+                pixmap1 = self._cv2_to_pixmap(self.widgetdata[widget]['img'].img)
+                buff = Plot.makePlot(self.widgetdata[widget]['img'].img).getBuf()
+
+                qimg = QImage.fromData(buff.read())
+                pixmap2 = QPixmap.fromImage(qimg)
+
+                self._display_to_label(label=label_img,pic=pixmap1)
+                self._display_to_label(label_chart, pixmap2)
+
+            radioBtnsGroup.buttonClicked.connect(lambda btn: showonclick(btn.text()))
+
 
     def _handlecontrast(self, widget:QWidget):
         self.widgetdata[widget] = {'img': None, 'path':'', 'reference': None}
@@ -124,7 +215,7 @@ class Mainwindow(QMainWindow):
 
         #set layout for radiobtns
         rdbuttonVlayout = QVBoxLayout()
-        btlayout.addLayout(rdbuttonVlayout,0,0)
+        btlayout.addLayout(rdbuttonVlayout,1,0)
 
         #label declaration
         label_img = QLabel()
@@ -146,13 +237,21 @@ class Mainwindow(QMainWindow):
         radiobtns = self._radiobtngenerator(radioBtnsGroup,['stretch pixel', 'Adjust contrast'],rdbuttonVlayout)
         radioBtnsGroup.setExclusive(True)
 
+        #create slider for contrastadjust
+        hSlider = QSlider()
+        hSlider.setRange(0,100)    
+        hSlider.setOrientation(Qt.Orientation.Horizontal)
+        hSlider.setFixedSize(0,0)
+        hSlider.setVisible(False)
+
         #set label to it's layout
         pclayout.addWidget(label_img)
         pclayout.addWidget(label_chart)
 
         #set button to it's layout
-        btlayout.addWidget(button_load,0,1,alignment=Qt.AlignmentFlag.AlignTop)
-        btlayout.addWidget(button_refresh,0,2,alignment=Qt.AlignmentFlag.AlignTop)
+        btlayout.addWidget(hSlider,0,0)
+        btlayout.addWidget(button_load,1,1,alignment=Qt.AlignmentFlag.AlignTop)
+        btlayout.addWidget(button_refresh,1,2,alignment=Qt.AlignmentFlag.AlignTop)
 
         #define function onclick refresh
         button_refresh.clicked.connect(lambda: self._comboadder(widget,button_load,[2,3]))
@@ -176,8 +275,13 @@ class Mainwindow(QMainWindow):
                 return
 
             match ind:
-                case 'stretch pixel': self.widgetdata[widget]['img'] = Img(ref.stretchPixelDist())
-                case 'Adjust contrast': self.widgetdata[widget]['img'] = Img(ref.contrastAdjust(alpha=contrastval))
+                case 'stretch pixel': 
+                    self.widgetdata[widget]['img'] = Img(ref.stretchPixelDist())
+                    hSlider.setVisible(False)
+                case 'Adjust contrast': 
+                    self.widgetdata[widget]['img'] = Img(ref.contrastAdjust(alpha=contrastval))
+                    hSlider.setFixedSize(int(widget.width()*0.2),10)
+                    hSlider.setVisible(True)
 
             pixmap1 = self._cv2_to_pixmap(self.widgetdata[widget]['img'].img)
             buff = Plot.makePlot(self.widgetdata[widget]['img'].img).getBuf()
@@ -189,6 +293,8 @@ class Mainwindow(QMainWindow):
             self._display_to_label(label_chart, pixmap2)
 
         radioBtnsGroup.buttonClicked.connect(lambda btn: showonclick(btn.text(),1.5))
+        hSlider.sliderReleased.connect(lambda : showonclick('Adjust contrast',hSlider.value()/10))
+        hSlider.valueChanged.connect(lambda v: QToolTip.showText(QCursor.pos(),str(v/10)))
 
 
     def _handlegrayscale(self, widget:QWidget):
@@ -541,11 +647,12 @@ class Mainwindow(QMainWindow):
             if not text:
                 return
             wd = getattr(self,text)
-            im = self.widgetdata[wd]['img']
-            self.widgetdata[widget]['path'] = self.widgetdata[wd]['path']
-            loadonclick(im)
-
-        rgbOptionGroup.buttonClicked.connect(lambda btn: loadonclick(None,btn.text()))
+            im = self.widgetdata[widget]
+            
+            im['reference'] = self.widgetdata[wd]['img']
+            im['path'] = self.widgetdata[wd]['path']
+            
+        rgbOptionGroup.buttonClicked.connect(lambda btn: loadonclick(self.widgetdata[widget]['reference'],btn.text()))
         button_refresh.clicked.connect(lambda: self._comboadder(widget,button_load,[3]))
         button_load.currentTextChanged.connect(helper)
         

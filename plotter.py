@@ -18,14 +18,14 @@ class Plot:
             # pastikan ax selalu iterable (array)
             ax = np.atleast_1d(ax)
             for i, col in enumerate(color):
-                hist = cv.calcHist([data], [i], None, [256], [0, 256])
-                ax[i].plot(hist, color=col)
+                hist = cv.calcHist([data], [i], None, [256], [0, 256]).ravel()
+                ax[i].bar(np.arange(256),hist, color=col)
                 ax[i].set_xlim([0, 256])
                 ax[i].set_ylabel(col.upper())
         else:  # grayscale
             fig, ax = plt.subplots(figsize=(4, 3))
-            hist = cv.calcHist([data], [0], None, [256], [0, 256])
-            ax.plot(hist, color='k')
+            hist = cv.calcHist([data], [0], None, [256], [0, 256]).ravel()
+            ax.bar(np.arange(256),hist, color='k')
             ax.set_xlim((0, 256))
             ax.set_title("One Channel")
 
