@@ -1,12 +1,36 @@
 from __future__ import annotations
 import cv2 as cv
 import numpy as np
+from numpy._core.numeric import ndarray
 
 
 class Img:
 
     supportedExtention = frozenset({".jpg", ".jpeg", ".png", ".bmp", ".tiff"})
     __slots__ = ["img"]
+    kernelLowpass1 = np.array([[1/16, 1/8, 1/16],
+                               [1/8, 1/4, 1/8],
+                               [1/16, 1/8, 1/4]])
+
+    kernelLowpass2 = np.array([[1/10,1/10,1/10],
+                               [1/10,1/5,1/10],
+                               [1/10,1/10,1/10]])
+
+    kernelLowpass3 = np.array([[1/9,1/9,1/9],
+                               [1/9,1/9,1/9],
+                               [1/9,1/9,1/9]])
+
+    kernelHighpass1 = np.array([[-1,-1,-1],
+                                [-1,8,-1],
+                                [-1,-1,-1]])
+
+    kernelHighpass2 = np.array([[0,-1,0],
+                                [-1,5,-1],
+                                [0,-1,0]])
+
+    kernelHighpass3 = np.array([[1,-2,1],
+                                [-2,5,-2],
+                                [1,-2,1]])
 
     def __init__(self, p: str | np.ndarray) -> None:
 
@@ -147,15 +171,10 @@ class Img:
 
         return None
 
-    def blur(self,kernelOpt:int = 1) -> np.ndarray | None:
-        if self.img is None:
+    def convolv(self,kernelOpt:np.ndarray) -> np.ndarray | None:
+        if self.img is None or kernelOpt is None:
             return None
-        kernelOpt = min(3, max(0, kernelOpt))
-        match kernelOpt:
-            case 1: return cv.filter2D(self.img,-1,cv.getGaussianKernel(15,1.0))
-            #case 2: return cv.filter2D(self.img,-1,cv.getGaborKernel(3,1.0))
-            #case 2: return cv.filter2D(self.img,-1,cv.getDerivKernels(ksize=3))           
-        return None
+        return cv.filter2D(self.img,-1,kernelOpt)
 
 
 
@@ -164,7 +183,7 @@ if __name__ == "__main__":
     inp = input("masukkan path").strip()
     mg = Img(inp)
 
-    w = mg.blur()
+    w = mg.convolv(kernelOpt=Img.kernelHighpass2)
 
     cv.namedWindow("stretchPixelDist", cv.WINDOW_NORMAL)
     cv.imshow("stretchPixelDist", w)
