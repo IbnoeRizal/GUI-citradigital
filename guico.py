@@ -393,6 +393,23 @@ class Img:
         if colorToMask in self.HSVMASKCOLORRANGE:
             return fuzzyTriangle(H, self.HSVMASKCOLORRANGE[colorToMask]) 
         else: return None
+
+    def morphology(self, mode:cv.MorphTypes, kshape:cv.MorphShapes, n=5) -> np.ndarray | None:
+        """
+        return morphology of any ndimensional image
+
+        Parameter
+        _________
+        mode:int
+            One of [MORPH_ERODE, MORPH_DILATE, MORPH_OPEN, MORPH_CLOSE, MORPH_GRADIENT, MORPH_TOPHAT, MORPH_BLACKHAT, MORPH_HITMISS]
+        kshape:int
+            One of [MORPH_RECT, MORPH_CROSS, MORPH_ELLIPSE, MORPH_DIAMOND]            
+            
+        """
+        if self.img is None:
+            return None
+        kernel = cv.getStructuringElement(kshape,(n,n))
+        return cv.morphologyEx(self.img,mode,kernel)
         
 
 
@@ -404,7 +421,7 @@ if __name__ == "__main__":
     inp = input("masukkan path").strip()
     mg = Img(inp)
      
-    w = mg.hsvMask("blue") 
+    w = mg.morphology(cv.MORPH_DILATE,cv.MORPH_CROSS)
     cv.namedWindow("stretchPixelDist", cv.WINDOW_NORMAL)
     cv.imshow("stretchPixelDist", w )
     cv.waitKey(0)
