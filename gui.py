@@ -16,7 +16,7 @@ import cv2 as cv
 class Mainwindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.options = ('original','grayscale', 'BW', 'neg', 'RGB','contrast','convolv','hsvMask')
+        self.options = ('original','grayscale', 'BW', 'neg', 'RGB','contrast','convolv','hsvMask','morphology')
         self.menu = ('file',)
         self.widgetdata ={}    
         
@@ -106,6 +106,114 @@ class Mainwindow(QMainWindow):
                 label_img.setText(f'err :{e}')
         
         button_proses.clicked.connect(loadonclick)
+    
+    def _handlemorphology(self, widget:QWidget):
+        self.widgetdata[widget] = {'img': None, 'path':'', 'reference': None}
+        widget.setStyleSheet('background-color: black')
+
+        #set layout
+        baseLayout = QVBoxLayout()
+        widget.setLayout(baseLayout)
+        
+        #set picture and chart layout
+        pclayout = QHBoxLayout()
+        baseLayout.addLayout(pclayout, stretch=2)
+
+        #set buttons layout
+        btlayout = QGridLayout()
+        baseLayout.addLayout(btlayout, stretch=1)
+
+        #set layout for radiobtns
+        rdbuttonVlayout = QVBoxLayout()
+        rdbuttonVlayout2 = QVBoxLayout()
+        btlayout.addLayout(rdbuttonVlayout,1,0)
+        btlayout.addLayout(rdbuttonVlayout2,1,1)
+
+        #label declaration
+        label_img = QLabel()
+        label_img.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Expanding)
+
+        label_chart = QLabel()
+        label_chart.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Expanding)
+
+        #button declaration
+        button_load = QComboBox()
+        button_load.setPlaceholderText('load dari proses lain')
+        button_load.setStyleSheet('color: white')
+
+        button_refresh = QPushButton('refresh')
+        button_refresh.setStyleSheet('background-color: dark gray')
+        button_refresh.setMaximumWidth(50)
+
+        radioBtnsGroup = QButtonGroup(widget)
+        radioBtnsGroup2 = QButtonGroup(widget)
+        mode = {
+            "Erode":cv.MORPH_ERODE, 
+            "Dilate":cv.MORPH_DILATE,
+            "Open":cv.MORPH_OPEN,
+            "Close":cv.MORPH_CLOSE,
+            "Gradient":cv.MORPH_GRADIENT
+        }
+
+        kerShape = {
+            "Rectangle": cv.MORPH_RECT,
+            "Cross": cv.MORPH_CROSS,
+            "Ellipse": cv.MORPH_ELLIPSE,
+            "Diamonds": cv.MORPH_DIAMOND
+        }
+
+        modes = self._radiobtngenerator(radioBtnsGroup,list(mode.keys()),rdbuttonVlayout)
+        kershapes = self._radiobtngenerator(radioBtnsGroup2,list(kerShape.keys()),rdbuttonVlayout2)
+        radioBtnsGroup.setExclusive(True)
+        radioBtnsGroup2.setExclusive(True)
+
+        #set label to it's layout
+        pclayout.addWidget(label_img,Qt.AlignmentFlag.AlignCenter)
+        pclayout.addWidget(label_chart,Qt.AlignmentFlag.AlignCenter)
+
+        #set button to it's layout
+        btlayout.addWidget(button_load,1,3,alignment=Qt.AlignmentFlag.AlignTop)
+        btlayout.addWidget(button_refresh,1,4,alignment=Qt.AlignmentFlag.AlignTop)
+
+        #define function onclick refresh
+        button_refresh.clicked.connect(lambda: self._comboadder(widget,button_load,[2,3]))
+
+        #define function onclick load button
+        def loadFromAnotherProcess(process:str):
+            if process == '':
+                return
+            data = getattr(self,process)
+            if not data: 
+                return
+            self.widgetdata[widget]['reference'] = self.widgetdata[data]['img']
+            self.widgetdata[widget]['path'] = self.widgetdata[data]['path']
+        button_load.currentTextChanged.connect(loadFromAnotherProcess)
+
+        #define function onclick radiobtn
+        def showonclick(arg1:str, arg2:str):
+            ref:Img = self.widgetdata[widget]['reference']
+            if ref is None or arg1 == '' or arg2 == '':
+                label_img.setText('ambil gambar dari proses lain terlebih dahulu')       
+                return
+            
+            self.widgetdata[widget]['img'] = Img(ref.morphology(mode[arg1],kerShape[arg2]))
+
+            pixmap1 = self._cv2_to_pixmap(self.widgetdata[widget]['img'].img)
+            buff = Plot.makePlot(self.widgetdata[widget]['img'].img).getBuf()
+
+            qimg = QImage.fromData(buff.read())
+            pixmap2 = QPixmap.fromImage(qimg)
+
+            self._display_to_label(label=label_img,pic=pixmap1)
+            self._display_to_label(label_chart, pixmap2)
+
+        radioBtnsGroup.buttonClicked.connect(
+            lambda btn: showonclick(btn.text(), radioBtnsGroup2.checkedButton().text() if radioBtnsGroup2.checkedButton() else "")
+        )
+        radioBtnsGroup2.buttonClicked.connect(
+            lambda btn2: showonclick(radioBtnsGroup.checkedButton().text() if radioBtnsGroup.checkedButton() else "", btn2.text())
+        )
+
     
     def _handlehsvMask(self, widget:QWidget):
         self.widgetdata[widget] ={'img': None, 'path':'', 'reference': None}
@@ -497,7 +605,8 @@ class Mainwindow(QMainWindow):
         
         #tambahkan slider pembersih objek untuk image segmentation
         slider = QSlider()
-        slider.setRange(0,10)
+        slider.setRange(1,100)
+        slider.setSingleStep(1)
         slider.setHidden(True)
 
         # tombol proses
@@ -559,14 +668,14 @@ class Mainwindow(QMainWindow):
 
         def slide(sizeobj:int):
             datadict:Img = self.widgetdata[widget]['img']
-            datadict = Img(datadict.clean_binary_mask(sizeobj * 100))
+            datadict = Img(datadict.clean_binary_mask(sizeobj * 10))
             self._display_to_label(label_img,self._cv2_to_pixmap(datadict.img))
 
 
         button_proses.clicked.connect(loadonclick)
         button_refresh.clicked.connect(lambda: self._comboadder(widget,button_load,[2,3]))
         button_load.currentTextChanged.connect(helper)
-        slider.valueChanged.connect(slide)
+        slider.sliderReleased.connect(lambda :slide(slider.value()))
 
     def _handleneg(self, widget:QWidget):
         self.widgetdata[widget] = {'img': None, 'path': ''}
