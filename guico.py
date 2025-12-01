@@ -1,9 +1,6 @@
 from __future__ import annotations
-from typing import Dict
 import cv2 as cv
 import numpy as np
-from numpy._core.numeric import array, ndarray
-from numpy._core.numerictypes import uint8
 
 
 class Img:
@@ -349,8 +346,8 @@ class Img:
 
         hsv = cv.cvtColor(self.img,cv.COLOR_BGR2HSV)
         H = hsv[:,:,0].astype(np.float32) * (255/179) #mengambil channel pertama yaitu Hue normalisasi menjadi 0 sampai 255
-        S = hsv[:,:,1]#mengambil channel kedua yaitu saturation
-        V = hsv[:,:,2]#mengambil channel ketiga yaitu value
+        #S = hsv[:,:,1]#mengambil channel kedua yaitu saturation
+        #V = hsv[:,:,2]#mengambil channel ketiga yaitu value
 
        
         def fuzzyTriangle(x, abc):
@@ -386,7 +383,7 @@ class Img:
 
             return result
 
-        SV = fuzzyTrapesium(S,np.array([30, 50, 255], dtype=np.uint8),R=True) * fuzzyTriangle(V,np.array([10, 120, 230], dtype=np.uint8))
+      #  SV = fuzzyTrapesium(S,np.array([30, 50, 255], dtype=np.uint8),R=True) * fuzzyTriangle(V,np.array([10, 120, 230], dtype=np.uint8))
 
         if colorToMask == "red":
             L = fuzzyTrapesium(H,self.HSVMASKCOLORRANGE[colorToMask + "UP"],R=True)
