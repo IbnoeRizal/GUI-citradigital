@@ -126,7 +126,7 @@ class Mainwindow(QMainWindow):
         #thelabel img
         label_img = QLabel()
         label_img.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Expanding)
-        pictureLayout.addWidget(label_img)
+        pictureLayout.addWidget(label_img, alignment=Qt.AlignmentFlag.AlignCenter)
 
         #the button 
         groupBtn = QButtonGroup()
@@ -227,8 +227,8 @@ class Mainwindow(QMainWindow):
         radioBtnsGroup.setExclusive(True)
 
         #set label to it's layout
-        pclayout.addWidget(label_img)
-        pclayout.addWidget(label_chart)
+        pclayout.addWidget(label_img,Qt.AlignmentFlag.AlignCenter)
+        pclayout.addWidget(label_chart,Qt.AlignmentFlag.AlignCenter)
 
         #set button to it's layout
         btlayout.addWidget(button_load,1,1,alignment=Qt.AlignmentFlag.AlignTop)
@@ -785,9 +785,12 @@ class Mainwindow(QMainWindow):
     def _display_to_label(self, label:QLabel, pic:QPixmap):
         width = self.width()//2
         height = self.height()//2
+        
+        w = int(width * 0.1)
+        h = int(height * 0.1)
         scaled_pixmap = pic.scaled(
-            width,
-            height,
+            width - w,
+            height - h,
             Qt.AspectRatioMode.IgnoreAspectRatio,
             Qt.TransformationMode.SmoothTransformation
         )
