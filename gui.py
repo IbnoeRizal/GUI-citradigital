@@ -1,7 +1,7 @@
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (QApplication, QSlider, QWidget, QPushButton, QFileDialog, QSizePolicy, QGridLayout,
                              QMainWindow, QHBoxLayout, QVBoxLayout, QTabWidget, QLabel, QComboBox, QRadioButton, 
-                             QButtonGroup, QToolTip)
+                             QButtonGroup, QToolTip, QWidgetAction)
 from PyQt6.QtGui import (QCursor, QImage, QPixmap)
 from typing import cast
 
@@ -16,7 +16,7 @@ import cv2 as cv
 class Mainwindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.options = ('original','grayscale', 'BW', 'neg', 'RGB','contrast','convolv')
+        self.options = ('original','grayscale', 'BW', 'neg', 'RGB','contrast','convolv','hsvMask')
         self.menu = ('file',)
         self.widgetdata ={}    
         
@@ -106,95 +106,174 @@ class Mainwindow(QMainWindow):
                 label_img.setText(f'err :{e}')
         
         button_proses.clicked.connect(loadonclick)
+    
+    def _handlehsvMask(self, widget:QWidget):
+        self.widgetdata[widget] ={'img': None, 'path':'', 'reference': None}
+        widget.setStyleSheet('background-color: black')
+
+        #setLayout
+        baseLayout = QVBoxLayout()
+        pictureLayout = QHBoxLayout()
+        bottomLayout = QHBoxLayout()
+        samplesBtlayout = QGridLayout()
+
+        #setup nesting layout
+        widget.setLayout(baseLayout)
+        baseLayout.addLayout(pictureLayout)
+        baseLayout.addLayout(bottomLayout)
+        bottomLayout.addLayout(samplesBtlayout)
+
+        #thelabel img
+        label_img = QLabel()
+        label_img.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Expanding)
+        pictureLayout.addWidget(label_img)
+
+        #the button 
+        groupBtn = QButtonGroup()
+        groupBtn.setParent(widget)
+        groupBtn.setExclusive(True)
+        buttons = {}
+
+        for k,_ in Img.HSVMASKCOLORRANGE.items():
+            k = k.lower()
+            if k in ("redup", "reddown"): k = "red"
+            if k in buttons: continue
+
+            bt = QPushButton()
+            bt.setText(k)
+            bt.setStyleSheet('color:black; background-color:' + k)
+
+            groupBtn.addButton(bt)
+
+            buttons[k] = bt
+            n = len(buttons) - 1
+            samplesBtlayout.addWidget(bt,n//3,n%3)
+        
+        button_load = QComboBox()
+        button_load.setPlaceholderText('load dari proses lain')
+        button_load.setStyleSheet('color: white')
+        bottomLayout.addWidget(button_load)
+
+        button_refresh = QPushButton('refresh')
+        button_refresh.setStyleSheet('background-color: dark gray')
+        button_refresh.setMaximumWidth(50)
+        bottomLayout.addWidget(button_refresh)
+
+        #action
+        def loadFromAnotherProcess(process:str):
+            if process == '':
+                return
+            data = getattr(self,process)
+            if not data: 
+                return
+            self.widgetdata[widget]['reference'] = self.widgetdata[data]['img']
+            self.widgetdata[widget]['path'] = self.widgetdata[data]['path']
+
+        def showonclick(ind:str):
+            ref:Img = self.widgetdata[widget]['reference']
+            orig = self.widgetdata[widget]
+            if ref is None or ind == '':
+                label_img.setText('ambil gambar dari proses lain terlebih dahulu')      
+                return
+            orig['img'] = Img((ref.hsvMask(ind) * 255).clip(0,255).astype(np.uint8))
+       
+            self._display_to_label(label_img, self._cv2_to_pixmap(orig['img'].img))
+
+            
+
+        button_refresh.clicked.connect(lambda: self._comboadder(widget,button_load,[3]))
+        button_load.currentTextChanged.connect(loadFromAnotherProcess)
+        groupBtn.buttonClicked.connect(lambda bt: showonclick(bt.text()))
+
 
     def _handleconvolv(self, widget:QWidget):
-            self.widgetdata[widget] = {'img': None, 'path':'', 'reference': None}
-            widget.setStyleSheet('background-color: black')
+        self.widgetdata[widget] = {'img': None, 'path':'', 'reference': None}
+        widget.setStyleSheet('background-color: black')
 
-            #set layout
-            baseLayout = QVBoxLayout()
-            widget.setLayout(baseLayout)
-            
-            #set picture and chart layout
-            pclayout = QHBoxLayout()
-            baseLayout.addLayout(pclayout, stretch=2)
+        #set layout
+        baseLayout = QVBoxLayout()
+        widget.setLayout(baseLayout)
+        
+        #set picture and chart layout
+        pclayout = QHBoxLayout()
+        baseLayout.addLayout(pclayout, stretch=2)
 
-            #set buttons layout
-            btlayout = QGridLayout()
-            baseLayout.addLayout(btlayout, stretch=1)
+        #set buttons layout
+        btlayout = QGridLayout()
+        baseLayout.addLayout(btlayout, stretch=1)
 
-            #set layout for radiobtns
-            rdbuttonVlayout = QVBoxLayout()
-            btlayout.addLayout(rdbuttonVlayout,1,0)
+        #set layout for radiobtns
+        rdbuttonVlayout = QVBoxLayout()
+        btlayout.addLayout(rdbuttonVlayout,1,0)
 
-            #label declaration
-            label_img = QLabel()
-            label_img.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Expanding)
+        #label declaration
+        label_img = QLabel()
+        label_img.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Expanding)
 
-            label_chart = QLabel()
-            label_chart.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Expanding)
+        label_chart = QLabel()
+        label_chart.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Expanding)
 
-            #button declaration
-            button_load = QComboBox()
-            button_load.setPlaceholderText('load dari proses lain')
-            button_load.setStyleSheet('color: white')
+        #button declaration
+        button_load = QComboBox()
+        button_load.setPlaceholderText('load dari proses lain')
+        button_load.setStyleSheet('color: white')
 
-            button_refresh = QPushButton('refresh')
-            button_refresh.setStyleSheet('background-color: dark gray')
-            button_refresh.setMaximumWidth(50)
+        button_refresh = QPushButton('refresh')
+        button_refresh.setStyleSheet('background-color: dark gray')
+        button_refresh.setMaximumWidth(50)
 
-            radioBtnsGroup = QButtonGroup(widget)
-            radiobtns = self._radiobtngenerator(radioBtnsGroup,['lp1', 'lp2', 'lp3', 'hp1','hp2','hp3'],rdbuttonVlayout)
-            radioBtnsGroup.setExclusive(True)
+        radioBtnsGroup = QButtonGroup(widget)
+        radiobtns = self._radiobtngenerator(radioBtnsGroup,['lp1', 'lp2', 'lp3', 'hp1','hp2','hp3'],rdbuttonVlayout)
+        radioBtnsGroup.setExclusive(True)
 
-            #set label to it's layout
-            pclayout.addWidget(label_img)
-            pclayout.addWidget(label_chart)
+        #set label to it's layout
+        pclayout.addWidget(label_img)
+        pclayout.addWidget(label_chart)
 
-            #set button to it's layout
-            btlayout.addWidget(button_load,1,1,alignment=Qt.AlignmentFlag.AlignTop)
-            btlayout.addWidget(button_refresh,1,2,alignment=Qt.AlignmentFlag.AlignTop)
+        #set button to it's layout
+        btlayout.addWidget(button_load,1,1,alignment=Qt.AlignmentFlag.AlignTop)
+        btlayout.addWidget(button_refresh,1,2,alignment=Qt.AlignmentFlag.AlignTop)
 
-            #define function onclick refresh
-            button_refresh.clicked.connect(lambda: self._comboadder(widget,button_load,[2,3]))
+        #define function onclick refresh
+        button_refresh.clicked.connect(lambda: self._comboadder(widget,button_load,[2,3]))
 
-            #define function onclick load button
-            def loadFromAnotherProcess(process:str):
-                if process == '':
-                    return
-                data = getattr(self,process)
-                if not data: 
-                    return
-                self.widgetdata[widget]['reference'] = self.widgetdata[data]['img']
-                self.widgetdata[widget]['path'] = self.widgetdata[data]['path']
-            button_load.currentTextChanged.connect(loadFromAnotherProcess)
+        #define function onclick load button
+        def loadFromAnotherProcess(process:str):
+            if process == '':
+                return
+            data = getattr(self,process)
+            if not data: 
+                return
+            self.widgetdata[widget]['reference'] = self.widgetdata[data]['img']
+            self.widgetdata[widget]['path'] = self.widgetdata[data]['path']
+        button_load.currentTextChanged.connect(loadFromAnotherProcess)
 
-            #define function onclick radiobtn
-            def showonclick(ind:str):
-                ref:Img = self.widgetdata[widget]['reference']
-                if ref is None or ind == '':
-                    label_img.setText('ambil gambar dari proses lain terlebih dahulu')       
-                    return
+        #define function onclick radiobtn
+        def showonclick(ind:str):
+            ref:Img = self.widgetdata[widget]['reference']
+            if ref is None or ind == '':
+                label_img.setText('ambil gambar dari proses lain terlebih dahulu')       
+                return
 
-                match ind:
-                    case 'lp1': self.widgetdata[widget]['img'] = Img(ref.convolv(Img.kernelLowpass1))
-                    case 'lp2': self.widgetdata[widget]['img'] = Img(ref.convolv(Img.kernelLowpass2))
-                    case 'lp3': self.widgetdata[widget]['img'] = Img(ref.convolv(Img.kernelLowpass3))
-                    case 'hp1': self.widgetdata[widget]['img'] = Img(ref.convolv(Img.kernelHighpass1))
-                    case 'hp2': self.widgetdata[widget]['img'] = Img(ref.convolv(Img.kernelHighpass2))
-                    case 'hp3': self.widgetdata[widget]['img'] = Img(ref.convolv(Img.kernelHighpass3))
-                    case _:return
+            match ind:
+                case 'lp1': self.widgetdata[widget]['img'] = Img(ref.convolv(Img.kernelLowpass1))
+                case 'lp2': self.widgetdata[widget]['img'] = Img(ref.convolv(Img.kernelLowpass2))
+                case 'lp3': self.widgetdata[widget]['img'] = Img(ref.convolv(Img.kernelLowpass3))
+                case 'hp1': self.widgetdata[widget]['img'] = Img(ref.convolv(Img.kernelHighpass1))
+                case 'hp2': self.widgetdata[widget]['img'] = Img(ref.convolv(Img.kernelHighpass2))
+                case 'hp3': self.widgetdata[widget]['img'] = Img(ref.convolv(Img.kernelHighpass3))
+                case _:return
 
-                pixmap1 = self._cv2_to_pixmap(self.widgetdata[widget]['img'].img)
-                buff = Plot.makePlot(self.widgetdata[widget]['img'].img).getBuf()
+            pixmap1 = self._cv2_to_pixmap(self.widgetdata[widget]['img'].img)
+            buff = Plot.makePlot(self.widgetdata[widget]['img'].img).getBuf()
 
-                qimg = QImage.fromData(buff.read())
-                pixmap2 = QPixmap.fromImage(qimg)
+            qimg = QImage.fromData(buff.read())
+            pixmap2 = QPixmap.fromImage(qimg)
 
-                self._display_to_label(label=label_img,pic=pixmap1)
-                self._display_to_label(label_chart, pixmap2)
+            self._display_to_label(label=label_img,pic=pixmap1)
+            self._display_to_label(label_chart, pixmap2)
 
-            radioBtnsGroup.buttonClicked.connect(lambda btn: showonclick(btn.text()))
+        radioBtnsGroup.buttonClicked.connect(lambda btn: showonclick(btn.text()))
 
 
     def _handlecontrast(self, widget:QWidget):
@@ -415,6 +494,11 @@ class Mainwindow(QMainWindow):
         Himglayout.addWidget(label_chart,0,1)
         Himglayout.setSpacing(2)
         Himglayout.setContentsMargins(0,0,0,0)
+        
+        #tambahkan slider pembersih objek untuk image segmentation
+        slider = QSlider()
+        slider.setRange(0,10)
+        slider.setHidden(True)
 
         # tombol proses
         button_proses = QPushButton('Load Img from file')
@@ -428,6 +512,7 @@ class Mainwindow(QMainWindow):
         button_refresh.setStyleSheet('background-color: dark gray')
         button_refresh.setMaximumWidth(50)
 
+        cont2layout.addWidget(slider)
         cont2layout.addWidget(button_proses)
         cont2layout.addWidget(button_load)
         cont2layout.addWidget(button_refresh,1)
@@ -458,6 +543,8 @@ class Mainwindow(QMainWindow):
                 qimg = QImage.fromData(buf.read())
                 pixmap = QPixmap.fromImage(qimg)
                 self._display_to_label(label_chart, pixmap)
+                slider.setHidden(False)
+                slider.setFixedWidth(int(widget.width()*0.2))
 
             except Exception as e:
                 label_img.setText(f'err :{e}')
@@ -470,10 +557,16 @@ class Mainwindow(QMainWindow):
             self.widgetdata[widget]['path'] = self.widgetdata[wd]['path']
             loadonclick(im)
 
+        def slide(sizeobj:int):
+            datadict:Img = self.widgetdata[widget]['img']
+            datadict = Img(datadict.clean_binary_mask(sizeobj * 100))
+            self._display_to_label(label_img,self._cv2_to_pixmap(datadict.img))
+
 
         button_proses.clicked.connect(loadonclick)
         button_refresh.clicked.connect(lambda: self._comboadder(widget,button_load,[2,3]))
         button_load.currentTextChanged.connect(helper)
+        slider.valueChanged.connect(slide)
 
     def _handleneg(self, widget:QWidget):
         self.widgetdata[widget] = {'img': None, 'path': ''}
