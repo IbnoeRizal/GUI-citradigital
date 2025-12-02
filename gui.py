@@ -283,9 +283,12 @@ class Mainwindow(QMainWindow):
             if ref is None or ind == '':
                 label_img.setText('ambil gambar dari proses lain terlebih dahulu')      
                 return
-            orig['img'] = Img((ref.hsvMask(ind) * 255).clip(0,255).astype(np.uint8))
-       
-            self._display_to_label(label_img, self._cv2_to_pixmap(orig['img'].img))
+            
+            bw =  Img(ref.hsvMask(ind))
+            orig['img'] = Img(bw.img * 255)
+
+            dpl = (bw.img[...,np.newaxis] *  ref.img).clip(0,255).astype(np.uint8)
+            self._display_to_label(label_img, self._cv2_to_pixmap(dpl))
 
             
 
