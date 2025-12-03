@@ -178,7 +178,7 @@ class Img:
         """
         if obj.img is None or len(obj.img.shape) != 2:
             return False
-        obj.img = np.stack((obj.img, obj.img, obj.img), axis=-1)
+        obj.img = np.stack((obj.img, obj.img, obj.img), axis=-1).astype(np.uint8)
 
         return obj.img is not None
 
@@ -411,6 +411,122 @@ class Img:
         kernel = cv.getStructuringElement(kshape,(n,n))
         return cv.morphologyEx(self.img,mode,kernel)
         
+    def eccentricity(self) -> np.ndarray | None:
+        bw = cv.Canny(self.toGrayscale(),100,200)
+
+        cp = np.dstack((bw,bw,bw))
+        if bw is None or cp is None:
+            return None
+        
+        #mendapatkan kontur dari semua objek
+        #cv.RETR_EXTERNAL : titik hanya terluar dari objek
+        #cv.CHAIN_APPROX_SIMPLE: titik yang berada di sepanjang garis diagonal atau tegak lurus dikompresi kecuali sudut
+        cnts, hierarchy = cv.findContours(bw,cv.RETR_EXTERNAL,cv.CHAIN_APPROX_SIMPLE)
+
+        for cnt in cnts:
+            if len(cnt) < 5: continue
+            try:
+                ellipse = cv.fitEllipse(cnt)
+            except:
+                continue
+
+            (x, y), (axis1, axis2), angle = ellipse
+
+            if np.isnan(x) or np.isnan(y) or np.isnan(axis1) or np.isnan(axis2):
+                continue
+
+            majorAxis = max(axis1, axis2)
+            minorAxis = min(axis1, axis2)
+
+            if majorAxis == 0: continue
+
+            e:float = np.sqrt(1-(minorAxis/majorAxis)**2)
+            if e < 0.6: continue
+
+            cv.putText(cp, f"{e * 100:.1f} %",(int(x), int(y)), cv.FONT_HERSHEY_COMPLEX, 1.0, (255,0,255), 2, cv.LINE_AA )
+            cv.ellipse(cp, ellipse, (0,255,0), 2)
+            
+
+        return cp
+    
+    def metric(self,treshold = 0.5, color = (255,0,0)) -> np.ndarray | None:
+        bw = self.toBW()
+        if bw is None:
+            return None
+        cp = np.dstack((bw,bw,bw))
+
+        treshold = max(0, min(1, treshold))
+        
+        contours, hierarchy = cv.findContours(bw,cv.RETR_EXTERNAL,cv.CHAIN_APPROX_SIMPLE)
+
+        for cnt in contours:
+            if len(cnt) <= 4 : continue
+            area = cv.contourArea(cnt)
+            perimeter = cv.arcLength(cnt,True)
+
+            if perimeter == 0: continue
+            metric = 4 * np.pi * area / perimeter**2
+
+            if metric > treshold:
+                (x,y), radius = cv.minEnclosingCircle(cnt)
+                center = (int(x), int(y))
+                radius = int(radius)
+
+                cv.circle(cp,center,radius,color,2)
+                cv.fillPoly(cp,[cnt],color)
+
+        return cp
+    
+    def sizeSegmentation(self, areaLabel = [[100,400],[300,2000,5000],[4900,9000]], col = [[255,0,0],[0,255,0],[0,0,255]]) -> np.ndarray | None:
+        bw = self.toBW()
+        if bw is None:
+            return None
+        cp = np.dstack((bw,bw,bw))
+
+        contour, hierarchy = cv.findContours(bw,cv.RETR_EXTERNAL,cv.CHAIN_APPROX_SIMPLE)
+        
+        def fuzzyTriangle(param, x):
+            left, peak, right = param
+
+            if x < left or x > right: 
+                return 0
+
+            l = (x - left) / (peak - left)
+            r = (right - x) / (right - peak)
+
+            return l if x <= peak else r
+        
+        def fuzzyTrapesium(param,x,riseRigtTop=True):
+            left, right = param
+            
+            if riseRigtTop:
+                res = (x - left) / (right - left)
+            else :
+                res = (right - x) / (right - left)
+                
+            return min(1, max(0, res)) 
+        
+        small, normal, big = areaLabel
+
+        for cnt in contour:
+
+            area = cv.contourArea(cnt)
+            fuzzyvar = np.array([
+                fuzzyTrapesium(small,area,False),
+                fuzzyTriangle(normal,area),
+                fuzzyTrapesium(big,area,True)
+                ])
+            
+            pick = np.argmax(fuzzyvar)
+
+            cv.fillPoly(cp,[cnt],col[pick])
+        
+        return cp
+
+
+
+                    
+
 
 
 
@@ -420,9 +536,8 @@ if __name__ == "__main__":
     print('this code section is for testing only')
     inp = input("masukkan path").strip()
     mg = Img(inp)
-     
-    w = mg.morphology(cv.MORPH_DILATE,cv.MORPH_CROSS)
-    cv.namedWindow("stretchPixelDist", cv.WINDOW_NORMAL)
-    cv.imshow("stretchPixelDist", w )
+    w = mg.sizeSegmentation()
+    cv.namedWindow("ellipse", cv.WINDOW_NORMAL)
+    cv.imshow("ellipse", w )
     cv.waitKey(0)
     cv.destroyAllWindows()
