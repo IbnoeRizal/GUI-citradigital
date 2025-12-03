@@ -16,7 +16,7 @@ import cv2 as cv
 class Mainwindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.options = ('original','grayscale', 'BW', 'neg', 'RGB','contrast','convolv','hsvMask','morphology')
+        self.options = ('original','grayscale', 'BW', 'neg', 'RGB','contrast','convolv','hsvMask','segmentation','morphology')
         self.menu = ('file',)
         self.widgetdata ={}    
         
@@ -213,8 +213,74 @@ class Mainwindow(QMainWindow):
         radioBtnsGroup2.buttonClicked.connect(
             lambda btn2: showonclick(radioBtnsGroup.checkedButton().text() if radioBtnsGroup.checkedButton() else "", btn2.text())
         )
+ 
+    def _handlesegmentation(self, widget:QWidget):
+        self.widgetdata[widget] ={'img': None, 'path':'', 'reference': None}
+        widget.setStyleSheet('background-color: black')
 
-    
+        #setLayout
+        baseLayout = QVBoxLayout()
+        pictureLayout = QHBoxLayout()
+        bottomLayout = QHBoxLayout()
+        samplesBtlayout = QVBoxLayout()
+
+        #setup nesting layout
+        widget.setLayout(baseLayout)
+        baseLayout.addLayout(pictureLayout)
+        baseLayout.addLayout(bottomLayout)
+        bottomLayout.addLayout(samplesBtlayout)
+
+        #thelabel img
+        label_img = QLabel()
+        label_img.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Expanding)
+        pictureLayout.addWidget(label_img, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        #the button 
+        groupBtn = QButtonGroup()
+        groupBtn.setParent(widget)
+        groupBtn.setExclusive(True)
+        buttons = self._radiobtngenerator(groupBtn,["eccentricity","metric","sizeSegmentation"],samplesBtlayout)
+        
+        button_load = QComboBox()
+        button_load.setPlaceholderText('load dari proses lain')
+        button_load.setStyleSheet('color: white')
+        bottomLayout.addWidget(button_load)
+
+        button_refresh = QPushButton('refresh')
+        button_refresh.setStyleSheet('background-color: dark gray')
+        button_refresh.setMaximumWidth(50)
+        bottomLayout.addWidget(button_refresh)
+
+        #action
+        def loadFromAnotherProcess(process:str):
+            if process == '':
+                return
+            data = getattr(self,process)
+            if not data: 
+                return
+            self.widgetdata[widget]['reference'] = self.widgetdata[data]['img']
+            self.widgetdata[widget]['path'] = self.widgetdata[data]['path']
+
+        def showonclick(ind:str):
+            ref:Img = self.widgetdata[widget]['reference']
+            orig = self.widgetdata[widget]
+            if ref is None or ind == '':
+                label_img.setText('ambil gambar dari proses lain terlebih dahulu')      
+                return
+            
+            match ind:
+                case "eccentricity": orig['img'] = Img(ref.eccentricity())
+                case "metric": orig['img'] = Img(ref.metric())
+                case "sizeSegmentation": orig['img'] = Img(ref.sizeSegmentation())
+
+            self._display_to_label(label_img, self._cv2_to_pixmap(orig['img'].img))
+
+            
+
+        button_refresh.clicked.connect(lambda: self._comboadder(widget,button_load,[2,3]))
+        button_load.currentTextChanged.connect(loadFromAnotherProcess)
+        groupBtn.buttonClicked.connect(lambda bt: showonclick(bt.text()))
+
     def _handlehsvMask(self, widget:QWidget):
         self.widgetdata[widget] ={'img': None, 'path':'', 'reference': None}
         widget.setStyleSheet('background-color: black')
@@ -670,9 +736,9 @@ class Mainwindow(QMainWindow):
             loadonclick(im)
 
         def slide(sizeobj:int):
-            datadict:Img = self.widgetdata[widget]['img']
-            datadict = Img(datadict.clean_binary_mask(sizeobj * 10))
-            self._display_to_label(label_img,self._cv2_to_pixmap(datadict.img))
+            datadict:Img = self.widgetdata[widget]
+            datadict['img'] = Img(datadict['img'].clean_binary_mask(sizeobj * 10))
+            self._display_to_label(label_img,self._cv2_to_pixmap(datadict['img'].img))
 
 
         button_proses.clicked.connect(loadonclick)
