@@ -1,7 +1,15 @@
 from __future__ import annotations
 import cv2 as cv
 import numpy as np
+from typing import TypedDict, Callable
 
+
+class Points(TypedDict):
+    getPoints: np.ndarray
+    drawPoints: Callable[[list[tuple[int,int]]],np.ndarray]
+    drawLine: Callable[[np.ndarray,tuple[int,int],tuple[int,int]],np.ndarray]
+    getDegree: Callable[[tuple[int,int], tuple[int,int]], float]
+    getDistance: Callable[[tuple[int,int], tuple[int,int]], float]
 
 class Img:
 
@@ -412,7 +420,16 @@ class Img:
         return cv.morphologyEx(self.img,mode,kernel)
         
     def eccentricity(self) -> np.ndarray | None:
-        bw = cv.Canny(self.toGrayscale(),100,200)
+
+        def fontscale(base_height=480 , base_font = 0.7):
+            h = self.img.shape[0]
+            return base_font * max(0.5, min(3.0, h / base_height))
+
+        def thickness(base_height=480, base_thickness=1):
+            h = self.img.shape[0]
+            return max(1, int(round(base_thickness * max(0.5, min(3.0, h / base_height)))))
+
+        bw = self.toBW()
 
         cp = np.dstack((bw,bw,bw))
         if bw is None or cp is None:
@@ -441,15 +458,19 @@ class Img:
             if majorAxis == 0: continue
 
             e:float = np.sqrt(1-(minorAxis/majorAxis)**2)
-            if e < 0.6: continue
+            if e >= 0.8: continue
 
-            cv.putText(cp, f"{e * 100:.1f} %",(int(x), int(y)), cv.FONT_HERSHEY_COMPLEX, 1.0, (255,0,255), 2, cv.LINE_AA )
-            cv.ellipse(cp, ellipse, (0,255,0), 2)
+            cv.putText(cp, f"{ (1 - e):.1%}",(int(x), int(y)), cv.FONT_HERSHEY_COMPLEX,fontscale(), (255,0,255), thickness(), cv.LINE_AA )
+            cv.ellipse(cp, ellipse, (0,255,0),thickness() )
             
 
         return cp
+    def areaImg(self) -> int:
+        if self.img is None:
+            return 0
+        return self.img.shape[0] * self.img.shape[1]
     
-    def metric(self,treshold = 0.5, color = (255,0,0)) -> np.ndarray | None:
+    def metric(self,treshold = 0.9, color = (255,0,0)) -> np.ndarray | None:
         bw = self.toBW()
         if bw is None:
             return None
@@ -477,7 +498,7 @@ class Img:
 
         return cp
     
-    def sizeSegmentation(self, areaLabel = [[100,400],[300,2000,5000],[4900,9000]], col = [[255,0,0],[0,255,0],[0,0,255]]) -> np.ndarray | None:
+    def sizeSegmentation(self, areaLabel = [[100,400],[300,2000,5000],[4900,9000]], color = [[255,0,0],[0,255,0],[0,0,255]]) -> np.ndarray | None:
         bw = self.toBW()
         if bw is None:
             return None
@@ -519,25 +540,113 @@ class Img:
             
             pick = np.argmax(fuzzyvar)
 
-            cv.fillPoly(cp,[cnt],col[pick])
+            cv.fillPoly(cp,[cnt],color[pick])
         
         return cp
 
+    def pointExtractor(self) -> Points | None:
+        """
+        extract point from self.img and return Points dict
 
+        Points 
+        ______
+            getPoints: np.ndarray
+            drawPoints(points): np.ndarray
+            drawLine(img,a,b):np.ndarray
+            getDegree(a,b): float
+            getDistance(a,b): float
 
-                    
+        """
+        if self.img is None:
+            return None
 
+        # 1. Edge (opsional tapi membantu)
+        gray = cv.cvtColor(self.img, cv.COLOR_BGR2GRAY)
+        edges = cv.Canny(gray, 50, 150)
 
+        # 2. Corner detection (Shi–Tomasi)
+        corners = cv.goodFeaturesToTrack(
+            edges,              # input
+            maxCorners=50,      # maksimal titik
+            qualityLevel=0.01,  # kualitas minimum
+            minDistance=20      # jarak antar titik
+        )
 
+        points = []
+        if corners is None:
+            return None
 
+        for c in corners:
+            x, y = c.ravel()
+            points.append((int(x), int(y)))
 
+        def getpoint():
+            """
+            return 
+            _______
+                points: np.array 
+                (x,y) coordinate
+            """
+            return np.array(points,dtype=np.uint32)
 
+        def drawpoints(p0:list[tuple[int,int]]):
+            """
+
+            draw the points and return the image
+
+            params
+            ______
+                p0: list[tuple[int,int]] as list of coordinate
+            return
+            ______
+                img: np.zeros (ndim == 3)
+            """
+            h,w = edges.shape
+
+            radius = int(min(h,w) * 0.005)
+            cp = np.zeros(shape=(h,w,3),dtype=np.uint8)
+
+            for p in p0:
+                cv.circle(cp, p, radius, (0, 0, 255), -1)
+            return cp
+        
+        def getDistance(pa, pb):
+            x1, y1 = pa
+            x2, y2 = pb
+
+            deltax = abs(x1 - x2)
+            deltay = abs(y1 - y2)
+
+            return np.sqrt(deltax**2 + deltay**2)
+        
+        def getDegree(pa, pb):
+            x1, y1 = pa
+            x2, y2 = pb
+            dx = x2 - x1
+            dy = y2 - y1
+            tetha = np.arctan2(dy, dx)
+            return np.degrees(tetha)
+        
+        def drawLine(refimg: np.ndarray, pointA:tuple[int,int], pointB:tuple[int,int]):
+            if refimg.ndim != 3:
+                return refimg
+            return cv.line(refimg,pointA,pointB,(0,255,0),3,cv.LINE_8)
+
+        return {
+            "getPoints": getpoint(),
+            "drawPoints":drawpoints,
+            "drawLine": drawLine,
+            "getDegree": getDegree,
+            "getDistance":getDistance,
+        }
+    
 if __name__ == "__main__":
     print('this code section is for testing only')
-    inp = input("masukkan path").strip()
+    inp = "egg.jpg"
     mg = Img(inp)
-    w = mg.sizeSegmentation()
+    w = mg.pointExtractor()
+    map = w["drawPoints"](w["getPoints"])
     cv.namedWindow("ellipse", cv.WINDOW_NORMAL)
-    cv.imshow("ellipse", w )
+    cv.imshow("ellipse", w["drawLine"](mg.img,w["getPoints"][0],w["getPoints"][4]))
     cv.waitKey(0)
     cv.destroyAllWindows()

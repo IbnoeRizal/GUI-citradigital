@@ -1,22 +1,38 @@
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (QApplication, QSlider, QWidget, QPushButton, QFileDialog, QSizePolicy, QGridLayout,
                              QMainWindow, QHBoxLayout, QVBoxLayout, QTabWidget, QLabel, QComboBox, QRadioButton, 
                              QButtonGroup, QToolTip, QWidgetAction)
-from PyQt6.QtGui import (QCursor, QImage, QPixmap)
+from PyQt6.QtGui import (QCursor, QImage, QMouseEvent, QPixmap)
 from typing import cast
 
 from matplotlib.pyplot import winter
 import numpy as np
 from plotter import Plot
-from guico import Img
+from guico import Img, Points
+
+from collections import deque
 
 import sys
 import cv2 as cv
 
+class ClickLable(QLabel):
+    clicked = pyqtSignal(int,int)
+
+    def __init__(self):
+        super().__init__()
+
+    def mousePressEvent(self, ev: QMouseEvent) -> None:
+        if ev.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit(int(ev.position().x()),int(ev.position().y()))
+
+
 class Mainwindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.options = ('original','grayscale', 'BW', 'neg', 'RGB','contrast','convolv','hsvMask','segmentation','morphology')
+        self.options = ('original','grayscale', 'BW', 
+                        'neg', 'RGB','contrast','convolv',
+                        'hsvMask','segmentation','morphology','point')
+        
         self.menu = ('file',)
         self.widgetdata ={}    
         
@@ -351,7 +367,10 @@ class Mainwindow(QMainWindow):
                 return
             
             bw =  Img(ref.hsvMask(ind))
-            orig['img'] = Img(bw.img * 255)
+
+            if not bw or not bw.img:
+                return
+            orig['img'] = Img((bw.img * 255).astype(np.uint8))
 
             dpl = (bw.img[...,np.newaxis] *  ref.img).clip(0,255).astype(np.uint8)
             self._display_to_label(label_img, self._cv2_to_pixmap(dpl))
@@ -362,6 +381,116 @@ class Mainwindow(QMainWindow):
         button_load.currentTextChanged.connect(loadFromAnotherProcess)
         groupBtn.buttonClicked.connect(lambda bt: showonclick(bt.text()))
 
+    def _handlepoint(self, widget:QWidget):
+        self.widgetdata[widget] ={'img': None, 'path':'', 'ref': None ,'source': None}
+        
+        widget.setStyleSheet('background-color: black')
+
+        #layout 
+        mainlayout = QVBoxLayout()
+        widget.setLayout(mainlayout)
+
+        upperlayout = QHBoxLayout()
+        lowerlayout = QHBoxLayout()
+        mainlayout.addLayout(upperlayout,1)
+        mainlayout.addLayout(lowerlayout,1)
+
+        bckg_layout = QVBoxLayout()
+        lowerlayout.addLayout(bckg_layout)
+        
+        #image
+        label_img = ClickLable()
+        label_img.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Expanding)
+        upperlayout.addWidget(label_img,alignment=Qt.AlignmentFlag.AlignCenter)
+
+        #load from another process button
+        button_load = QComboBox()
+        button_load.setPlaceholderText('load dari proses lain')
+        button_load.setStyleSheet('color: white')
+        lowerlayout.addWidget(button_load)
+
+        #refresh button
+        refresh = QPushButton()
+        refresh.setText('refresh')
+        refresh.setStyleSheet('color: white')
+        lowerlayout.addWidget(refresh)
+
+        #background
+        bgGroup = QButtonGroup(parent=widget)
+        bgGroup.setExclusive(True)
+        listbutton = self._radiobtngenerator(bgGroup,["original","black"],bckg_layout)
+
+        #action
+        refresh.clicked.connect(lambda: self._comboadder(widget,button_load,[2,3]))
+
+        def loadFromAnotherProcess(process:str):
+            if process == '':
+                return
+            data = getattr(self,process)
+            if not data: 
+                return
+            self.widgetdata[widget]['source'] = self.widgetdata[data]['img']
+            self.widgetdata[widget]['ref'] = self.widgetdata[data]['img'].pointExtractor()
+            self.widgetdata[widget]['path'] = self.widgetdata[data]['path']
+            self.widgetdata[widget]['img'] = None
+
+
+        button_load.currentTextChanged.connect(loadFromAnotherProcess)
+
+        twopoints = deque(maxlen=2) #accumulator
+
+        def showpoints(opt: str):
+            datas:dict = self.widgetdata[widget]
+            twopoints.clear()
+
+            if datas['ref'] is None:
+                return
+            
+            points = datas['ref']['getPoints']
+            default = datas['ref']['drawPoints'](points)
+            
+            if opt == 'original' and datas['source'].img.shape == default.shape :
+                mask = (default > 0)
+                bgAndPoints = (datas['source'].img.copy() * 0.5).astype(np.uint8)
+
+                bgAndPoints[mask] = default[mask]
+                datas['img'] = Img(bgAndPoints)
+            else:
+                datas['img'] = Img(default)
+            
+            self._display_to_label(label_img,self._cv2_to_pixmap(datas['img'].img))
+        
+        bgGroup.buttonClicked.connect(lambda bt: showpoints(bt.text()))
+
+
+        def pointToPoint(tp: tuple[int,int]):
+            x, y = tp
+            datas = self.widgetdata[widget]
+
+            if x < 0 or y < 0 or datas['ref'] is None or datas['img'] is None:
+                return
+            
+            pts = datas['ref']['getPoints']
+            if pts is None or len(pts) == 0:
+                return
+
+            diff = pts - np.array([x, y])
+            dist2 = np.sum(diff**2, axis=1)
+            idx = np.argmin(dist2)
+
+            twopoints.append(tuple(pts[idx]))
+
+            if len(twopoints) < 2:
+                return
+            
+            image = datas['ref']['drawLine'](datas['img'].img,twopoints[0],twopoints[1])
+
+            self._display_to_label(label_img,self._cv2_to_pixmap(image))
+
+        label_img.clicked.connect(lambda a,b: pointToPoint(self._gui_to_img_scaler(a,b,label_img)))
+
+
+        
 
     def _handleconvolv(self, widget:QWidget):
         self.widgetdata[widget] = {'img': None, 'path':'', 'reference': None}
@@ -451,7 +580,6 @@ class Mainwindow(QMainWindow):
             self._display_to_label(label_chart, pixmap2)
 
         radioBtnsGroup.buttonClicked.connect(lambda btn: showonclick(btn.text()))
-
 
     def _handlecontrast(self, widget:QWidget):
         self.widgetdata[widget] = {'img': None, 'path':'', 'reference': None}
@@ -552,7 +680,6 @@ class Mainwindow(QMainWindow):
         hSlider.sliderReleased.connect(lambda : showonclick('Adjust contrast',hSlider.value()/10))
         hSlider.valueChanged.connect(lambda v: QToolTip.showText(QCursor.pos(),str(v/10)))
 
-
     def _handlegrayscale(self, widget:QWidget):
         self.widgetdata[widget] = {'img': None, 'path': ''}
 
@@ -643,7 +770,7 @@ class Mainwindow(QMainWindow):
         button_load.currentTextChanged.connect(helper)
 
     def _handleBW (self, widget:QWidget):
-        self.widgetdata[widget] = {'img': None, 'path': ''}
+        self.widgetdata[widget] = {'img': None, 'path': '', 'ref': None}
 
         widget.setStyleSheet('background-color: black')
 
@@ -714,6 +841,7 @@ class Mainwindow(QMainWindow):
                 else:
                     datadict['img'] = Img(Img.makeTemp(datadict['path']).toBW())
 
+                datadict['ref'] = None
                 self._display_to_label(label_img,self._cv2_to_pixmap(datadict['img'].img))
                 buf = Plot.makePlot(datadict['img'].img).getBuf()
 
@@ -736,8 +864,12 @@ class Mainwindow(QMainWindow):
             loadonclick(im)
 
         def slide(sizeobj:int):
-            datadict:Img = self.widgetdata[widget]
-            datadict['img'] = Img(datadict['img'].clean_binary_mask(sizeobj * 10))
+            datadict = self.widgetdata[widget] 
+
+            if datadict['ref'] is None:
+                datadict['ref'] = datadict['img']
+
+            datadict['img'] = Img(datadict['ref'].clean_binary_mask(sizeobj * 10))
             self._display_to_label(label_img,self._cv2_to_pixmap(datadict['img'].img))
 
 
@@ -960,7 +1092,7 @@ class Mainwindow(QMainWindow):
             qimg = QImage(rgb.data, w, h, 3 * w, QImage.Format.Format_RGB888)
         return QPixmap.fromImage(qimg)
     
-    def _display_to_label(self, label:QLabel, pic:QPixmap):
+    def _display_to_label(self, label:QLabel | ClickLable, pic:QPixmap):
         width = self.width()//2
         height = self.height()//2
         
@@ -984,7 +1116,7 @@ class Mainwindow(QMainWindow):
                 Combbutton.addItem(name) 
                 Combbutton.setStyleSheet('color: white')
 
-    def _radiobtngenerator(self, groupbtn: QButtonGroup, btns: list[str], layout: QVBoxLayout) -> list[QRadioButton]:
+    def _radiobtngenerator(self, groupbtn: QButtonGroup, btns: list[str], layout: QHBoxLayout | QVBoxLayout) -> list[QRadioButton]:
         radios = []
         for text in btns:
             rb = QRadioButton(text)
@@ -993,6 +1125,23 @@ class Mainwindow(QMainWindow):
             layout.addWidget(rb)
             radios.append(rb)
         return radios
+    
+    def _gui_to_img_scaler(self, mx:int, my:int, label: ClickLable) -> tuple[int,int]:
+        widget = cast(QTabWidget, self.centralWidget()).currentWidget()
+        datas:dict = self.widgetdata[widget]
+
+        if datas["img"] is None: 
+            return (-1,-1)
+        
+        img_h, img_w = datas["img"].img.shape[:2]
+
+        gui_w = label.width()
+        gui_h = label.height()
+
+        sx = img_w / gui_w
+        sy = img_h / gui_h
+
+        return int(mx * sx), int(my * sy)
 
 
 app = QApplication(sys.argv)
