@@ -483,7 +483,16 @@ class Mainwindow(QMainWindow):
             if len(twopoints) < 2:
                 return
             
-            image = datas['ref']['drawLine'](datas['img'].img,twopoints[0],twopoints[1])
+            obj = datas['ref']
+            pA, pB = twopoints
+
+            distance = obj['getDistance'](pA,pB)
+            degree = obj['getDegree'](pA,pB)
+            
+            startP = ((pA[0] + pB[0])//2, (pA[1] + pB[1])//2)
+            
+            image = obj['drawLine'](datas['img'].img,pA,pB)
+            image = obj['drawText'](image, [f'dis={distance:.2f} px', f'deg={degree:.2f}'],startP)
 
             self._display_to_label(label_img,self._cv2_to_pixmap(image))
 

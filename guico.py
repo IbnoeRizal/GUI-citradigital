@@ -10,6 +10,7 @@ class Points(TypedDict):
     drawLine: Callable[[np.ndarray,tuple[int,int],tuple[int,int]],np.ndarray]
     getDegree: Callable[[tuple[int,int], tuple[int,int]], float]
     getDistance: Callable[[tuple[int,int], tuple[int,int]], float]
+    drawText: Callable[[np.ndarray,list[str],tuple[int,int],tuple[int,int]],np.ndarray]
 
 class Img:
 
@@ -418,16 +419,19 @@ class Img:
             return None
         kernel = cv.getStructuringElement(kshape,(n,n))
         return cv.morphologyEx(self.img,mode,kernel)
+    
+    def fontscale(self,base_height=480 , base_font = 0.7,real_height=None):
+            if not real_height:
+                real_height = self.img.shape[0]
+            return base_font * max(0.5, min(3.0, real_height / base_height))
+
+    def thickness(self,base_height=480, base_thickness=1,real_height=None):
+        if not real_height:
+            real_height = self.img.shape[0]
+        return max(1, int(round(base_thickness * max(0.5, min(3.0, real_height / base_height)))))
         
     def eccentricity(self) -> np.ndarray | None:
 
-        def fontscale(base_height=480 , base_font = 0.7):
-            h = self.img.shape[0]
-            return base_font * max(0.5, min(3.0, h / base_height))
-
-        def thickness(base_height=480, base_thickness=1):
-            h = self.img.shape[0]
-            return max(1, int(round(base_thickness * max(0.5, min(3.0, h / base_height)))))
 
         bw = self.toBW()
 
@@ -460,8 +464,8 @@ class Img:
             e:float = np.sqrt(1-(minorAxis/majorAxis)**2)
             if e >= 0.8: continue
 
-            cv.putText(cp, f"{ (1 - e):.1%}",(int(x), int(y)), cv.FONT_HERSHEY_COMPLEX,fontscale(), (255,0,255), thickness(), cv.LINE_AA )
-            cv.ellipse(cp, ellipse, (0,255,0),thickness() )
+            cv.putText(cp, f"{ (1 - e):.1%}",(int(x), int(y)), cv.FONT_HERSHEY_COMPLEX,self.fontscale(real_height=None), (255,0,255), self.thickness(real_height=None), cv.LINE_AA )
+            cv.ellipse(cp, ellipse, (0,255,0),self.thickness(real_height=None) )
             
 
         return cp
@@ -587,7 +591,7 @@ class Img:
                 points: np.array 
                 (x,y) coordinate
             """
-            return np.array(points,dtype=np.uint32)
+            return np.array(points,dtype=np.int32)
 
         def drawpoints(p0:list[tuple[int,int]]):
             """
@@ -613,11 +617,7 @@ class Img:
         def getDistance(pa, pb):
             x1, y1 = pa
             x2, y2 = pb
-
-            deltax = abs(x1 - x2)
-            deltay = abs(y1 - y2)
-
-            return np.sqrt(deltax**2 + deltay**2)
+            return np.sqrt((x1 - x2)**2 + (y1 - y2)**2)
         
         def getDegree(pa, pb):
             x1, y1 = pa
@@ -631,6 +631,24 @@ class Img:
             if refimg.ndim != 3:
                 return refimg
             return cv.line(refimg,pointA,pointB,(0,255,0),3,cv.LINE_8)
+        
+        def putText(img: np.ndarray, listr: list[str], start: tuple[int,int], diff: tuple[int,int] = (0,10)):
+
+            n = len(listr)
+            if img is None or img.ndim != 3 or n == 0:
+                return img
+            
+            for s in range(len(listr)):
+                img = cv.putText(img,listr[s],start,cv.FONT_HERSHEY_COMPLEX,self.fontscale(real_height=img.shape[0]),(0,0,255),self.thickness(real_height=img.shape[0]),cv.LINE_AA)
+                x, y = start
+                x2,y2 = diff
+
+                dx, dy = x - x2, y - (y2 + int(img.shape[0]*0.05))
+                if dx < 0 or dy < 0:
+                    break
+                start = (dx,dy)
+
+            return img
 
         return {
             "getPoints": getpoint(),
@@ -638,6 +656,7 @@ class Img:
             "drawLine": drawLine,
             "getDegree": getDegree,
             "getDistance":getDistance,
+            "drawText": putText
         }
     
 if __name__ == "__main__":
