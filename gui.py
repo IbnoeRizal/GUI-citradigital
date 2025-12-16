@@ -8,7 +8,7 @@ from typing import cast
 from matplotlib.pyplot import winter
 import numpy as np
 from plotter import Plot
-from guico import Img, Points
+from guico import Img
 
 from collections import deque
 
