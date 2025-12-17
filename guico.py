@@ -421,17 +421,49 @@ class Img:
         return cv.morphologyEx(self.img,mode,kernel)
     
     def fontscale(self,base_height=480 , base_font = 0.7,real_height=None):
+            """
+            scale a font based on height of the current image
+            
+            param
+            _____
+                base_height = base 480px
+                base_font   = base 0.7 opencv scale
+
+            return
+            _____
+                float 0.5 to 3.0 fontscale
+            """
             if not real_height:
                 real_height = self.img.shape[0]
             return base_font * max(0.5, min(3.0, real_height / base_height))
 
     def thickness(self,base_height=480, base_thickness=1,real_height=None):
+        """
+        scale a thickness of the font based on height of the current image
+
+        param
+        _____
+            base_height = base 480px
+            base_thickness   = base 1 opencv scale
+
+        return
+        _____
+            float 0.5 to 3.0 fontscale
+        """
         if not real_height:
             real_height = self.img.shape[0]
         return max(1, int(round(base_thickness * max(0.5, min(3.0, real_height / base_height)))))
         
     def eccentricity(self) -> np.ndarray | None:
+        """
+        Eccentricity is defined as the distance between a focus point of an ellipse along its major axis 
+        and the center of the ellipse. An eccentricity of 1 indicates the object is approaching a straight line, 
+        while an eccentricity of 0 indicates the object is approaching a perfect circle.
 
+        Returns
+        -------
+            np.ndarray : an image with ellipses drawn around all objects whose probability is greater than or equal to 30% 
+        """
 
         bw = self.toBW()
 
@@ -470,11 +502,41 @@ class Img:
 
         return cp
     def areaImg(self) -> int:
+        """
+        return size of the image (height * width)
+        ______
+            int
+        """
         if self.img is None:
             return 0
         return self.img.shape[0] * self.img.shape[1]
     
     def metric(self,treshold = 0.9, color = (255,0,0)) -> np.ndarray | None:
+        """
+        metric is defined as the ratio of the area of an object to the square of its perimeter, multiplied with ( 4.pi )
+        
+        perimeter of a perfect circle = 2.pi.r
+        area of a perfect circle  = pi.r^2
+
+        metric formula of a perfect circle 
+        metric = 4.pi(pi.r^2)/(2.pi.r)^2
+        metric = 2^2.pi^2.r^2/(2.pi.r)^2
+        metric = (2.pi.r)^2/(2.pi.r)^2
+        metric = 1
+
+        if the metric for any given object is approaches 1, it means the object is approaching the shape of perfect circle, and vice versa
+
+        Parameters
+        ----------
+            treshold : default = 0.9
+            color: tuple representing an rgb value, with each component ranging from 0 to 255
+
+
+        Returns 
+        -------
+            np.ndarray :  an image with circles drawn around all object whose probability exceeds the threshold
+
+        """
         bw = self.toBW()
         if bw is None:
             return None
@@ -503,6 +565,36 @@ class Img:
         return cp
     
     def sizeSegmentation(self, areaLabel = [[100,400],[300,2000,5000],[4900,9000]], color = [[255,0,0],[0,255,0],[0,0,255]]) -> np.ndarray | None:
+        """
+        Segment objects in a binary image based on their contour area using fuzzy membership functions.
+
+        The method converts the input image to binary , finds contours, 
+        and classifies each contour into one of three categories (small, normal, big) 
+        using fuzzy trapezoidal and triangular membership functions. Each category 
+        is then filled with a specified color in the output image.
+
+        Parameters
+        ----------
+        areaLabel : list of list, optional
+            Thresholds for fuzzy membership functions:
+            - small   : [left, right]
+            - normal  : [left, peak, right]
+            - big     : [left, right]
+            Default = [[100,400], [300,2000,5000], [4900,9000]].
+
+        color : list of list, optional
+            RGB colors used to fill contours for each category:
+            - small   : [255, 0, 0]   (red)
+            - normal  : [0, 255, 0]   (green)
+            - big     : [0, 0, 255]   (blue)
+            Default = [[255,0,0], [0,255,0], [0,0,255]].
+
+        Returns
+        -------
+        np.ndarray or None
+            - Colored image (3-channel) with contours filled according to category.
+            - None if binary conversion fails.
+        """
         bw = self.toBW()
         if bw is None:
             return None
