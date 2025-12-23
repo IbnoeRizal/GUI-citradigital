@@ -16,42 +16,6 @@ class Img:
 
     supportedExtention = frozenset({".jpg", ".jpeg", ".png", ".bmp", ".tiff"})
     __slots__ = ["img"]
-    kernelLowpass1 = np.array([[1/16, 1/8, 1/16],
-                               [1/8, 1/4, 1/8],
-                               [1/16, 1/8, 1/4]])
-
-    kernelLowpass2 = np.array([[1/10,1/10,1/10],
-                               [1/10,1/5,1/10],
-                               [1/10,1/10,1/10]])
-
-    kernelLowpass3 = np.array([[1/9,1/9,1/9],
-                               [1/9,1/9,1/9],
-                               [1/9,1/9,1/9]])
-
-    kernelHighpass1 = np.array([[-1,-1,-1],
-                                [-1,8,-1],
-                                [-1,-1,-1]])
-
-    kernelHighpass2 = np.array([[0,-1,0],
-                                [-1,5,-1],
-                                [0,-1,0]])
-
-    kernelHighpass3 = np.array([[1,-2,1],
-                                [-2,5,-2],
-                                [1,-2,1]])
-
-    HSVMASKCOLORRANGE = {
-        "redDown":  np.array([  0,   0,  14], dtype=np.uint8),   # 0–10
-        "redUP":    np.array([242, 255, 255], dtype=np.uint8),   # 170–179
-        "orange":   np.array([ 14,  28,  35], dtype=np.uint8),   # 10–25
-        "yellow":   np.array([ 35,  49,  63], dtype=np.uint8),   # 25–35
-        "green":    np.array([ 49, 121, 170], dtype=np.uint8),   # 35–85
-        "cyan":     np.array([121, 142, 170], dtype=np.uint8),   # 85–100
-        "blue":     np.array([142, 185, 213], dtype=np.uint8),   # 100–130
-        "purple":   np.array([185, 213, 228], dtype=np.uint8),   # 130–150
-        "magenta":  np.array([213, 234, 242], dtype=np.uint8),   # 150–170
-        "pink":     np.array([228, 242, 255], dtype=np.uint8),   # 160–179 (soft)
-    } 
 
     def __init__(self, p: str | np.ndarray) -> None:
 
@@ -277,6 +241,30 @@ class Img:
 
         return None
 
+    kernelLowpass1 = np.array([[1/16, 1/8, 1/16],
+                               [1/8, 1/4, 1/8],
+                               [1/16, 1/8, 1/4]])
+
+    kernelLowpass2 = np.array([[1/10,1/10,1/10],
+                               [1/10,1/5,1/10],
+                               [1/10,1/10,1/10]])
+
+    kernelLowpass3 = np.array([[1/9,1/9,1/9],
+                               [1/9,1/9,1/9],
+                               [1/9,1/9,1/9]])
+
+    kernelHighpass1 = np.array([[-1,-1,-1],
+                                [-1,8,-1],
+                                [-1,-1,-1]])
+
+    kernelHighpass2 = np.array([[0,-1,0],
+                                [-1,5,-1],
+                                [0,-1,0]])
+
+    kernelHighpass3 = np.array([[1,-2,1],
+                                [-2,5,-2],
+                                [1,-2,1]])
+
     def convolv(self,kernelOpt:np.ndarray) -> np.ndarray | None:
         """
         Menjalankan konvolusi terhadap gambar dengan kernel
@@ -334,6 +322,19 @@ class Img:
                 cleaned[labels == i] = 255
 
         return cleaned
+
+    HSVMASKCOLORRANGE = {
+        "redDown":  np.array([  0,   0,  14], dtype=np.uint8),   # 0–10
+        "redUP":    np.array([242, 255, 255], dtype=np.uint8),   # 170–179
+        "orange":   np.array([ 14,  28,  35], dtype=np.uint8),   # 10–25
+        "yellow":   np.array([ 35,  49,  63], dtype=np.uint8),   # 25–35
+        "green":    np.array([ 49, 121, 170], dtype=np.uint8),   # 35–85
+        "cyan":     np.array([121, 142, 170], dtype=np.uint8),   # 85–100
+        "blue":     np.array([142, 185, 213], dtype=np.uint8),   # 100–130
+        "purple":   np.array([185, 213, 228], dtype=np.uint8),   # 130–150
+        "magenta":  np.array([213, 234, 242], dtype=np.uint8),   # 150–170
+        "pink":     np.array([228, 242, 255], dtype=np.uint8),   # 160–179 (soft)
+    } 
 
     def hsvMask(self,colorToMask:str) -> np.ndarray | None:
         """
