@@ -752,13 +752,126 @@ class Img:
             "drawText": putText
         }
     
+    OFFSETS = {
+        0  :    ( 0, 1),
+        45 :    (-1, 1),
+        90 :    (-1, 0),
+        135:    (-1,-1)
+    }
+    
+    def _quantization(self, distance:int) -> tuple[int, np.ndarray | None]:
+        if self.img is None or not distance or self.img.ndim != 2:
+            return 0 , None
+        
+        ruleOfThumb: int = round(np.sqrt(distance))
+        print(f"banyak kelas : {ruleOfThumb}")
+        return ruleOfThumb,(self.img[:,:].astype(np.int32) * ruleOfThumb/255).clip(0,ruleOfThumb-1).astype(np.int32)
+    
+    def build_GLCM(self, angles:list[int], distance:int) -> dict[tuple[int,int],np.ndarray]:
+        classes, P = self._quantization(255)
+        G = {}
+        if P is None: 
+            return G
+        
+        H,W = P.shape
+        
+        maxiter = min(4, max(0,len(angles)))
+
+        for i in range(maxiter):
+            angle = angles[i]
+            dy, dx = self.OFFSETS[angle]
+
+            if None in (dy,dx):
+                continue
+
+            dy *= distance
+            dx *= distance
+
+            y0, y1 = max(0, -dy), min(H, H-dy)
+            x0, x1 = max(0, -dx), min(W, W-dx)
+
+            a:np.ndarray = P[y0:y1, x0:x1].ravel()
+            b:np.ndarray = P[y0+dy:y1+dy, x0+dx:x1+dx].ravel()
+            print("pasangan indeks")
+            print(a.max(), b.max())
+
+            heatMap = np.zeros((classes,classes),dtype=np.uint64)
+            
+            if 0 in (a.size,b.size):
+                G[(angle,distance)] = heatMap
+                continue
+
+            np.add.at(heatMap,(a,b),1)
+            G[(angle,distance)] = heatMap
+    
+        return G
+    
+    @staticmethod
+    def normalize(image:np.ndarray) -> np.ndarray:
+        denom = image.sum()
+        return image.astype(np.float64) / denom if denom else image.astype(np.float64)
+    
+    @staticmethod
+    def getGLCMFeature(P:np.ndarray):
+        result = {}
+        if P is None or P.ndim !=2 or P.shape[0] != P.shape[1]:
+            return result
+        
+        n = P.shape[0]
+        
+        i:np.ndarray = np.arange(n)[:,None] # n row
+        j:np.ndarray = np.arange(n)[None,:] # n col
+
+        contrast = np.sum((i - j)**2 *P)
+        dissimilarity = np.sum(np.abs(i-j)*P)
+        homogenity = np.sum(P/(1+ np.abs(i-j)))
+        energy = np.sum(P**2)
+
+        px = P.sum(axis=1)
+        py = P.sum(axis=0)
+
+        miu_x = np.sum(i[:,0] * px)
+        miu_y = np.sum(j[0,:] * py)
+
+        sigma_x = np.sqrt(np.sum(
+                (
+                    (i[:,0] - miu_x)**2
+                ) * px
+            ))
+        
+        sigma_y = np.sqrt(np.sum(
+                (
+                    (j[0,:] - miu_y)**2
+                ) * py
+            ))
+        
+        denom = sigma_x * sigma_y
+        correlation = 0 if denom <= 1e-10 else np.sum(((i - miu_x)*(j - miu_y) * P)) / denom
+
+        result.update({
+            'contrast': float(contrast),
+            'dissimilarity': float(dissimilarity),
+            'homogenity': float(homogenity),
+            'energy': float(energy),
+            'correlation': float(correlation)
+        })
+
+        return result
+
 if __name__ == "__main__":
     print('this code section is for testing only')
-    inp = "egg.jpg"
+    inp = "lockpaper.jpg"
     mg = Img(inp)
-    w = mg.pointExtractor()
-    map = w["drawPoints"](w["getPoints"])
+    mg.img = mg.toGrayscale()
+    m = mg.build_GLCM([0,45,90,135],3)
+    for (angle, distance),heap in m.items() :
+        print(f"\n\nangle: {angle} distance {distance}")
+        features = Img.getGLCMFeature(Img.normalize(heap))
+        for feature, value in features.items():
+            print(f"{feature}: values : {value:.4f}")
+        
+    
     cv.namedWindow("ellipse", cv.WINDOW_NORMAL)
-    cv.imshow("ellipse", w["drawLine"](mg.img,w["getPoints"][0],w["getPoints"][4]))
+    cv.imshow("ellipse", mg.img)
     cv.waitKey(0)
     cv.destroyAllWindows()
