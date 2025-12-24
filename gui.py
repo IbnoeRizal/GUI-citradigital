@@ -111,7 +111,7 @@ class Mainwindow(QMainWindow):
             try:
                 datadict['img'] = Img(datadict['path'])
                 self._display_to_label(label_img,self._cv2_to_pixmap(datadict['img'].img))
-                buf = Plot.makePlot(datadict['img'].img).getBuf()
+                buf = Plot.makePlot(datadict['img'].img).histogram().histogram().getBuf()
 
             # ubah buffer → QPixmap
                 qimg = QImage.fromData(buf.read())
@@ -215,7 +215,7 @@ class Mainwindow(QMainWindow):
             self.widgetdata[widget]['img'] = Img(ref.morphology(mode[arg1],kerShape[arg2]))
 
             pixmap1 = self._cv2_to_pixmap(self.widgetdata[widget]['img'].img)
-            buff = Plot.makePlot(self.widgetdata[widget]['img'].img).getBuf()
+            buff = Plot.makePlot(self.widgetdata[widget]['img'].img).histogram().getBuf()
 
             qimg = QImage.fromData(buff.read())
             pixmap2 = QPixmap.fromImage(qimg)
@@ -580,7 +580,7 @@ class Mainwindow(QMainWindow):
                 case _:return
 
             pixmap1 = self._cv2_to_pixmap(self.widgetdata[widget]['img'].img)
-            buff = Plot.makePlot(self.widgetdata[widget]['img'].img).getBuf()
+            buff = Plot.makePlot(self.widgetdata[widget]['img'].img).histogram().getBuf()
 
             qimg = QImage.fromData(buff.read())
             pixmap2 = QPixmap.fromImage(qimg)
@@ -677,7 +677,7 @@ class Mainwindow(QMainWindow):
                     hSlider.setVisible(True)
 
             pixmap1 = self._cv2_to_pixmap(self.widgetdata[widget]['img'].img)
-            buff = Plot.makePlot(self.widgetdata[widget]['img'].img).getBuf()
+            buff = Plot.makePlot(self.widgetdata[widget]['img'].img).histogram().getBuf()
 
             qimg = QImage.fromData(buff.read())
             pixmap2 = QPixmap.fromImage(qimg)
@@ -755,7 +755,7 @@ class Mainwindow(QMainWindow):
                     datadict['img'] = Img(Img.makeTemp(datadict['path']).toGrayscale())
 
                 self._display_to_label(label_img,self._cv2_to_pixmap(datadict['img'].img))
-                buf = Plot.makePlot(datadict['img'].img).getBuf()
+                buf = Plot.makePlot(datadict['img'].img).histogram().getBuf()
 
             # ubah buffer → QPixmap
                 qimg = QImage.fromData(buf.read())
@@ -852,7 +852,7 @@ class Mainwindow(QMainWindow):
 
                 datadict['ref'] = None
                 self._display_to_label(label_img,self._cv2_to_pixmap(datadict['img'].img))
-                buf = Plot.makePlot(datadict['img'].img).getBuf()
+                buf = Plot.makePlot(datadict['img'].img).histogram().getBuf()
 
             # ubah buffer → QPixmap
                 qimg = QImage.fromData(buf.read())
@@ -953,7 +953,7 @@ class Mainwindow(QMainWindow):
                     datadict['img'] = Img(Img.makeTemp(datadict['path']).toNeg())
 
                 self._display_to_label(label_img,self._cv2_to_pixmap(datadict['img'].img))
-                buf = Plot.makePlot(datadict['img'].img).getBuf()
+                buf = Plot.makePlot(datadict['img'].img).histogram().getBuf()
 
             # ubah buffer → QPixmap
                 qimg = QImage.fromData(buf.read())
@@ -1045,7 +1045,7 @@ class Mainwindow(QMainWindow):
                     datadict['img'] = Img(Img.makeTemp(datadict['path']).dissableexcept(arg2))
 
                 self._display_to_label(label_img,self._cv2_to_pixmap(datadict['img'].img))
-                buf = Plot.makePlot(datadict['img'].img).getBuf()
+                buf = Plot.makePlot(datadict['img'].img).histogram().getBuf()
 
             # ubah buffer → QPixmap
                 qimg = QImage.fromData(buf.read())
