@@ -48,14 +48,43 @@ class Plot:
         plt.close(fig)
         self.buf.seek(0)
 
-    @staticmethod
-    def makePlot(data) -> Plot:
-        return Plot(data)
+        return self
     
-    def getBuf(self):
-        return self.buf
-    
-    def _plot(self, ax, img) -> None:
-        pass
+    def heapMap(self,texts:np.ndarray) -> Plot:
+        if self.img is None or self.img.ndim != 3:
+            return self
+        
+        n = len(texts)
+
+        if n != 0 and not isinstance(texts[0],dict):
+            return self
+        
+        fig, ax = plt.subplots(n or 1, 2 if n else 1, sharex='col',figsize=(10, 3*n if n else 3))
+        ax = np.atleast_1d(ax)
+        
+        
+        for i in range(len(self.img)):
+            Z = self.img[i]
+
+            ax[i,0].imshow(Z)
+            if 'angle' in texts[i]:
+                ax[i,0].set_title(f'angle: {int(texts[i]['angle'])}')
+            
+            if n:
+                ax[i,1].axis('off')
+                text_content = '\n'.join([f'{k}: {v:.3f}' for k, v in texts[i].items() if k != 'angle'])
+                ax[i, 1].text(0.5, 0.5, text_content, 
+                         transform=ax[i, 1].transAxes,
+                         fontsize=11,
+                         verticalalignment='center',
+                         horizontalalignment='left',
+                         family='monospace')
+                
+        fig.tight_layout()
+        plt.savefig(self.buf, format='png')
+        plt.close(fig)
+        self.buf.seek(0)
+        
+        return self
         
 
