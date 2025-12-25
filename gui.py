@@ -458,7 +458,7 @@ class Mainwindow(QMainWindow):
             else:
                 datas['img'] = Img(default)
             
-            self._display_to_label(label_img,self._cv2_to_pixmap(datas['img'].img))
+            self._display_to_label(label_img,self._cv2_to_pixmap(datas['img'].img),1,1.1)
         
         bgGroup.buttonClicked.connect(lambda bt: showpoints(bt.text()))
 
@@ -494,12 +494,9 @@ class Mainwindow(QMainWindow):
             image = obj['drawLine'](datas['img'].img,pA,pB)
             image = obj['drawText'](image, [f'dis={distance:.2f} px', f'deg={degree:.2f}'],startP)
 
-            self._display_to_label(label_img,self._cv2_to_pixmap(image))
+            self._display_to_label(label_img,self._cv2_to_pixmap(image),1,1.1)
 
-        label_img.clicked.connect(lambda a,b: pointToPoint(self._gui_to_img_scaler(a,b,label_img)))
-
-
-        
+        label_img.clicked.connect(lambda a,b: pointToPoint(self._gui_to_img_scaler(a,b,label_img)))     
 
     def _handleconvolv(self, widget:QWidget):
         self.widgetdata[widget] = {'img': None, 'path':'', 'reference': None}
@@ -1101,15 +1098,13 @@ class Mainwindow(QMainWindow):
             qimg = QImage(rgb.data, w, h, 3 * w, QImage.Format.Format_RGB888)
         return QPixmap.fromImage(qimg)
     
-    def _display_to_label(self, label:QLabel | ClickLable, pic:QPixmap):
-        width = self.width()//2
-        height = self.height()//2
+    def _display_to_label(self, label:QLabel | ClickLable, pic:QPixmap, denomW=2., denomH=2.):
+        width = int(self.width()//denomW)
+        height = int(self.height()//denomH)
         
-        w = int(width * 0.1)
-        h = int(height * 0.1)
         scaled_pixmap = pic.scaled(
-            width - w,
-            height - h,
+            width - int(width * 0.1),
+            height - int(height * 0.1),
             Qt.AspectRatioMode.IgnoreAspectRatio,
             Qt.TransformationMode.SmoothTransformation
         )
