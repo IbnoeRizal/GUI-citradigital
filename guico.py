@@ -658,7 +658,7 @@ class Img:
             return None
 
         # 1. Edge (opsional tapi membantu)
-        gray = cv.cvtColor(self.img, cv.COLOR_BGR2GRAY)
+        gray = self.toGrayscale()
         edges = cv.Canny(gray, 50, 150)
 
         # 2. Corner detection (Shi–Tomasi)
@@ -792,8 +792,7 @@ class Img:
 
             a:np.ndarray = P[y0:y1, x0:x1].ravel()
             b:np.ndarray = P[y0+dy:y1+dy, x0+dx:x1+dx].ravel()
-            print("pasangan indeks")
-            print(a.max(), b.max())
+           
 
             heatMap = np.zeros((classes,classes),dtype=np.uint64)
             
