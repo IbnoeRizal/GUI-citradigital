@@ -50,17 +50,16 @@ class Plot:
 
         return self
     
-    def heapMap(self,texts:np.ndarray) -> Plot:
+    def heatMap(self,texts:list[dict]) -> Plot:
         if self.img is None or self.img.ndim != 3:
             return self
         
         n = len(texts)
-
         if n != 0 and not isinstance(texts[0],dict):
             return self
         
         fig, ax = plt.subplots(n or 1, 2 if n else 1, sharex='col',figsize=(10, 3*n if n else 3))
-        ax = np.atleast_1d(ax)
+        ax = np.atleast_2d(ax)
         
         
         for i in range(len(self.img)):
