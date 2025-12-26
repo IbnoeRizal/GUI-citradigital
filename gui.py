@@ -1,7 +1,7 @@
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtWidgets import (QApplication, QSlider, QWidget, QPushButton, QFileDialog, QSizePolicy, QGridLayout,
                              QMainWindow, QHBoxLayout, QVBoxLayout, QTabWidget, QLabel, QComboBox, QRadioButton, 
-                             QButtonGroup, QToolTip, QWidgetAction)
+                             QButtonGroup, QToolTip, QCheckBox, QPlainTextEdit)
 from PyQt6.QtGui import (QCursor, QImage, QMouseEvent, QPixmap)
 from typing import cast
 
@@ -31,7 +31,8 @@ class Mainwindow(QMainWindow):
         super().__init__()
         self.options = ('original','grayscale', 'BW', 
                         'neg', 'RGB','contrast','convolv',
-                        'hsvMask','segmentation','morphology','point')
+                        'hsvMask','segmentation','morphology','point',
+                        'glcm')
         
         self.menu = ('file',)
         self.widgetdata ={}    
@@ -289,7 +290,7 @@ class Mainwindow(QMainWindow):
                 case "metric": orig['img'] = Img(ref.metric())
                 case "sizeSegmentation": orig['img'] = Img(ref.sizeSegmentation())
 
-            self._display_to_label(label_img, self._cv2_to_pixmap(orig['img'].img))
+            self._display_to_label(label_img, self._cv2_to_pixmap(orig['img'].img),1,1.2)
 
             
 
@@ -368,12 +369,12 @@ class Mainwindow(QMainWindow):
             
             bw =  Img(ref.hsvMask(ind))
 
-            if not bw or not bw.img:
+            if bw is None:
                 return
             orig['img'] = Img((bw.img * 255).astype(np.uint8))
 
             dpl = (bw.img[...,np.newaxis] *  ref.img).clip(0,255).astype(np.uint8)
-            self._display_to_label(label_img, self._cv2_to_pixmap(dpl))
+            self._display_to_label(label_img, self._cv2_to_pixmap(dpl),1,1.2)
 
             
 
@@ -1064,7 +1065,145 @@ class Mainwindow(QMainWindow):
         rgbOptionGroup.buttonClicked.connect(lambda btn: loadonclick(self.widgetdata[widget]['reference'],btn.text()))
         button_refresh.clicked.connect(lambda: self._comboadder(widget,button_load,[3]))
         button_load.currentTextChanged.connect(helper)
+
+    def _handleglcm(self, widget:QWidget):
+        self.widgetdata[widget] = {'img': None, 'path':''}
+        widget.setStyleSheet('background-color: black')
+
+        #layout
+        mainLayout = QVBoxLayout(widget)
+        mainContentLayout = QHBoxLayout()
+        buttonLayout = QHBoxLayout()
+        coreFunction = QHBoxLayout()
+        choiceBound  = QVBoxLayout() 
+
+        mainLayout.addLayout(mainContentLayout,3)
+        mainLayout.addLayout(buttonLayout,1)
         
+        buttonLayout.addLayout(coreFunction,1)
+        coreFunction.addLayout(choiceBound)
+
+        #button angle
+        angles = []
+        for i in range(4):
+            b = QCheckBox(text=f"{i*45}")
+            choiceBound.addWidget(b)
+            angles.append(b)
+            b.setStyleSheet("""
+            QCheckBox::indicator:checked {
+                    background-color: white;
+                }
+            """)
+
+        #text
+        tedit = QPlainTextEdit()
+        tedit.setStyleSheet('background-color : white; color: black')
+        tedit.setMaximumSize(100,50)
+        coreFunction.addWidget(tedit)
+        #button
+
+        buttonlist: list[QPushButton | QComboBox] = [
+            QPushButton('Load Img from file',widget),
+            QComboBox(widget),
+            QPushButton('refresh',widget)
+        ]
+
+        buttonlist[0].setStyleSheet('background-color: dark gray')
+        buttonlist[1].setPlaceholderText('load dari proses lain')
+        buttonlist[1].setStyleSheet('color: white')
+        buttonlist[2].setStyleSheet('background-color: dark gray')
+        buttonlist[2].setMaximumWidth(50)
+
+        #button layout
+        for b in buttonlist:
+            buttonLayout.addWidget(b,1)
+
+        #label image 
+        #           | image       |     graph    |
+        labelist = [QLabel(widget),QLabel(widget)]
+        
+        # label layout
+        for i in range(len(labelist)):
+            mainContentLayout.addWidget(labelist[i],i,Qt.AlignmentFlag.AlignCenter)
+        
+        #click signal
+        #refresh button 
+        buttonlist[2].clicked.connect(lambda: self._comboadder(widget,buttonlist[1],[2,3]))
+        
+        #load picture
+        def loadpicture(arg:Img | None):
+            if not self.widgetdata[widget]['path']:
+                labelist[0].setText('Load file terlebih dahulu')
+                labelist[0].setStyleSheet('background-color: red')
+                return
+            
+            datadict = self.widgetdata[widget]
+            #try to load file
+            try:
+                if isinstance(arg, Img):
+                    datadict['img'] = Img(arg.toGrayscale())
+                else:
+                    datadict['img'] = Img(Img.makeTemp(datadict['path']).toGrayscale())
+
+                self._display_to_label(labelist[0],self._cv2_to_pixmap(datadict['img'].img))
+
+            except Exception as e:
+                labelist[0].setText(f'err :{e}')
+    
+        buttonlist[0].clicked.connect(lambda: loadpicture(None))
+
+        #get resource from another process
+        def loadanother_resource(text:str):
+            another = getattr(self,text)
+            data = self.widgetdata[another]
+
+            self.widgetdata[widget]['path'] = data['path']
+            loadpicture(data['img'])
+
+        buttonlist[1].currentTextChanged.connect(loadanother_resource)
+
+        #saat timer nonaktrif, trigger event text edit
+        timer = QTimer()
+        timer.setSingleShot(True)
+        timer.setInterval(700)
+
+        #handler distance text
+        def  texedithandle(text:str):
+            n:int = 0
+            for i in text:
+                if i.isdigit():
+                    x = int(i)
+                    if x == 0:
+                        n *= 10
+                    else:
+                        n += x
+            an = [] 
+            for i in angles:
+                if i.isChecked():
+                    an.append(int(i.text()))
+            data = self.widgetdata[widget]
+            if not(n or an) or data['img'] is None:
+                return
+            
+            G:dict[tuple[int,int],np.ndarray] = data['img'].build_GLCM(an,n)
+            
+            desc = []
+            pic = []
+            for (ang,_), v in G.items():
+                norm = Img.normalize(v)
+                note = Img.getGLCMFeature(norm)
+                note['angle'] = ang
+                desc.append(note)
+                pic.append(v)
+
+            buf = Plot.makePlot(np.array(pic,dtype=np.uint64)).heatMap(desc).getBuf()
+            qimg = QImage.fromData(buf.read())
+            pixmap = QPixmap.fromImage(qimg)
+            self._display_to_label(labelist[1], pixmap,2,1.3)
+
+        tedit.textChanged.connect(lambda: timer.start())
+        timer.timeout.connect(lambda: texedithandle(tedit.toPlainText()))
+            
     #menu bar handler
     def _handlefile(self, button:QPushButton):
 
@@ -1087,6 +1226,7 @@ class Mainwindow(QMainWindow):
 
         button.clicked.connect(onclick)
     
+    #functionality
     def _cv2_to_pixmap(self, img:cv.Mat) -> QPixmap:
         """Konversi OpenCV image (BGR/Gray) ke QPixmap"""
         if len(img.shape) == 2:
