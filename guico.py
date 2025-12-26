@@ -764,7 +764,6 @@ class Img:
             return 0 , None
         
         ruleOfThumb: int = round(np.sqrt(distance))
-        print(f"banyak kelas : {ruleOfThumb}")
         return ruleOfThumb,(self.img[:,:].astype(np.int32) * ruleOfThumb/255).clip(0,ruleOfThumb-1).astype(np.int32)
     
     def build_GLCM(self, angles:list[int], distance:int) -> dict[tuple[int,int],np.ndarray]:
@@ -858,19 +857,4 @@ class Img:
         return result
 
 if __name__ == "__main__":
-    print('this code section is for testing only')
-    inp = "lockpaper.jpg"
-    mg = Img(inp)
-    mg.img = mg.toGrayscale()
-    m = mg.build_GLCM([0,45,90,135],3)
-    for (angle, distance),heap in m.items() :
-        print(f"\n\nangle: {angle} distance {distance}")
-        features = Img.getGLCMFeature(Img.normalize(heap))
-        for feature, value in features.items():
-            print(f"{feature}: values : {value:.4f}")
-        
-    
-    cv.namedWindow("ellipse", cv.WINDOW_NORMAL)
-    cv.imshow("ellipse", mg.img)
-    cv.waitKey(0)
-    cv.destroyAllWindows()
+ 
